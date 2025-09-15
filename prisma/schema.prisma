@@ -1,0 +1,343 @@
+generator client {
+    provider      = "prisma-client-js"
+    // binaryTargets = ["native", "debian-openssl-1.0.x"]
+    binaryTargets = ["native"]
+}
+
+datasource db {
+    provider = "mysql"
+    url      = env("DATABASE_URL")
+}
+
+enum Role {
+    SUPER_ADMIN
+    ADMIN
+    USER
+}
+
+//! User
+model User {
+    id                       Int       @id @default(autoincrement())
+    firstname                String
+    lastname                 String
+    email                    String    @unique
+    password                 String
+    phone_number             String    @unique
+    role                     Role      @default(USER)
+    avatar                   String?
+    resetPasswordToken       String?
+    resetPasswordTokenExpiry DateTime?
+    refreshToken             String?
+
+    otp          String?
+    otpExpiresAt DateTime?
+    isVerified   Boolean   @default(false)
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    events_booked  Event[]
+    blogs_approved Blog[]  @relation("ApprovedBlogs")
+    blogs_author   Blog[]  @relation("BlogAuthor")
+}
+
+//! Category Table
+model Category {
+    id            Int    @id @default(autoincrement())
+    category_name String @unique
+    category_icon String
+
+    products  Product[]
+    createdAt DateTime  @default(now()) @map("created_at")
+    updatedAt DateTime  @updatedAt @map("updated_at")
+}
+
+//! Location Table
+model District {
+    id            Int      @id @default(autoincrement())
+    district_name String   @unique
+    createdAt     DateTime @default(now()) @map("created_at")
+    updatedAt     DateTime @updatedAt @map("updated_at")
+
+    products Product[]
+}
+
+//! Business
+model Venue {
+    id             Int       @id @default(autoincrement())
+    venue_name     String    @unique
+    venue_address  String
+    contact_person String
+    phone_number   String
+    email          String
+    pan_vat_number String?
+    active         Boolean   @default(false)
+    products       Product[]
+    createdAt      DateTime  @default(now()) @map("created_at")
+    updatedAt      DateTime  @updatedAt @map("updated_at")
+}
+
+//! Product 
+model Product {
+    id                Int     @id @default(autoincrement())
+    title             String
+    description       String
+    address           String
+    short_description String?
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    category    Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
+    category_id Int
+
+    multimedia    Multimedia[]
+    entertainment Entertainment[]
+    musical       Musical[]
+    luxury        Luxury[]
+    meeting       Meeting[]
+    beautydecor   BeautyDecor[]
+    adventure     Adventure[]
+    partypalace   PartyPalace[]
+    cateringtent  CateringTent[]
+
+    product_image ProductImage[]
+    event         Event[]
+
+    District   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+    districtId Int
+
+    Venue      Venue @relation(fields: [businessId], references: [id], onDelete: Cascade)
+    businessId Int
+}
+
+//! Event Table
+model Event {
+    id             Int       @id @default(autoincrement())
+    start_date     DateTime
+    end_date       DateTime
+    start_time     DateTime?
+    end_time       DateTime?
+    is_approved    Boolean   @default(false)
+    is_rejected    Boolean   @default(false)
+    userId         Int
+    productId      Int
+    approved_by_id Int? // Added field for relation with User
+    // Relations
+    // Remove the unique constraint from productId
+    createdAt      DateTime  @default(now()) @map("created_at")
+    updatedAt      DateTime  @updatedAt @map("updated_at")
+    Product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+    // Explicit many-to-many relationships with join tables
+    //! Categories wala haru
+    PartyPalace   PartyPalace[]   @relation("EventPartyPalace")
+    CateringTent  CateringTent[]  @relation("EventCateringTent")
+    Adventure     Adventure[]     @relation("EventAdventure")
+    BeautyDecor   BeautyDecor[]   @relation("EventBeautyDecor")
+    Meeting       Meeting[]       @relation("EventMeeting")
+    Entertainment Entertainment[] @relation("EventEntertainment")
+    Luxury        Luxury[]        @relation("EventLuxury")
+    Musical       Musical[]       @relation("EventMusical")
+    Multimedia    Multimedia[]    @relation("EventMultimedia")
+
+    EventTypes EventEventType[] // Relation to the join table
+    User       User             @relation(fields: [userId], references: [id])
+}
+
+model EventType {
+    id        Int              @id @default(autoincrement())
+    title     String
+    Events    EventEventType[] // Relation to the join table
+    createdAt DateTime         @default(now()) @map("created_at")
+    updatedAt DateTime         @updatedAt @map("updated_at")
+}
+
+model EventEventType {
+    eventId     Int
+    eventTypeId Int
+
+    // Relations
+    Event     Event     @relation(fields: [eventId], references: [id],onDelete: Cascade)
+    EventType EventType @relation(fields: [eventTypeId], references: [id])
+
+    @@id([eventId, eventTypeId]) // Composite primary key
+}
+
+//! 1. Multimedia (Photography and Videography)
+model Multimedia {
+    id              Int     @id @default(autoincrement())
+    multimedia_name String
+    price           Int
+    description     String?
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+    Product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+    productId Int?
+    // events    EventMultimedia[]
+    events    Event[]  @relation("EventMultimedia")
+}
+
+//! 2. Musical Beats
+model Musical {
+    id              Int     @id @default(autoincrement())
+    instrument_name String
+    price           Int
+    description     String?
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+    Product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+    productId Int?
+    // events    EventMusical[]
+    events    Event[]  @relation("EventMusical")
+}
+
+//! 3. Extra Luxury
+model Luxury {
+    id          Int     @id @default(autoincrement())
+    luxury_name String
+    price       Int
+    description String?
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+    Product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+    productId Int?
+    // events    EventLuxury[]
+    events    Event[]  @relation("EventLuxury")
+}
+
+//! 4. Entertainment
+model Entertainment {
+    id                 Int     @id @default(autoincrement())
+    entertainment_name String
+    price              Int
+    description        String?
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+    Product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+    productId Int?
+    // events    EventEntertainment[]
+    events    Event[]  @relation("EventEntertainment")
+}
+
+//! 5. Meeting
+model Meeting {
+    id           Int     @id @default(autoincrement())
+    meeting_name String
+    price        Int
+    description  String?
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+    Product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+    productId Int?
+    // events    EventMeeting[]
+    events    Event    @relation("EventMeeting", fields: [eventId], references: [id])
+    eventId   Int
+}
+
+//! 6. Beauty & Decor
+model BeautyDecor {
+    id          Int     @id @default(autoincrement())
+    beauty_name String
+    price       Int
+    description String?
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+    Product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+    productId Int?
+    // events    EventBeautyDecor[]
+    events    Event[]  @relation("EventBeautyDecor")
+}
+
+//! 7. Adventure
+model Adventure {
+    id             Int     @id @default(autoincrement())
+    adventure_name String
+    price          Int
+    description    String?
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+    Product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+    productId Int?
+    // events    EventAdventure[]
+    events    Event[]  @relation("EventAdventure")
+}
+
+//! 8. PartyPalace
+model PartyPalace {
+    id               Int     @id @default(autoincrement())
+    partypalace_name String
+    price            Int
+    description      String?
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+    Product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+    productId Int?
+    // events    EventPartyPalace[]
+    events    Event[]  @relation("EventPartyPalace")
+}
+
+//! 9. CateringTent
+model CateringTent {
+    id            Int     @id @default(autoincrement())
+    catering_name String
+    price         Int
+    description   String?
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+    Product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+    productId Int?
+    // events    EventCateringTent[]
+    events    Event[]  @relation("EventCateringTent")
+}
+
+//! Product Image
+model ProductImage {
+    id  Int    @id @default(autoincrement())
+    url String
+
+    Product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+    productId Int?
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+//! ContactUs form Business
+model ContactUs {
+    id                   Int      @id @default(autoincrement())
+    business_name        String
+    email                String   @unique
+    address              String
+    phone_number         String?  @unique
+    another_phone_number String?  @unique
+    contact_person       String
+    createdAt            DateTime @default(now()) @map("created_at")
+    updatedAt            DateTime @updatedAt @map("updated_at")
+}
+
+//! Blogs
+model Blog {
+    id                Int      @id @default(autoincrement())
+    title             String   @unique
+    short_description String?
+    image             String
+    description       String
+    is_approved       Boolean?
+    createdAt         DateTime @default(now()) @map("created_at")
+    updatedAt         DateTime @updatedAt @map("updated_at")
+
+    author   User? @relation("BlogAuthor", fields: [authorId], references: [id])
+    authorId Int?
+
+    approved_by    User? @relation("ApprovedBlogs", fields: [approved_by_id], references: [id])
+    approved_by_id Int?
+}

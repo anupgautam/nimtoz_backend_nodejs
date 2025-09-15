@@ -1,0 +1,25 @@
+"scripts": {
+    "start": "node index",
+    "dev": "nodemon index"
+  },
+
+  with pm2
+  "scripts": {
+    "start": "node index",
+    "dev": "pm2 start index.js --name "nimtoz_backend" --watch"
+  },
+
+  with babel
+  "scripts": {
+  "build": "babel index.js --out-dir dist",
+  "start": "node dist/index.js",
+  "dev": "nodemon index.js"
+}
+
+with esbuild
+"scripts": {
+  "build": "esbuild index.js --bundle --platform=node --outfile=dist/index.js",
+  "start": "node dist/index.js",
+  "dev": "nodemon index.js"
+}
+
