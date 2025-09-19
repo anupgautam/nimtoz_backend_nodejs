@@ -8,39 +8,43 @@ import { prisma } from '../config/prisma.js'
 
 //! Login User
 const loginUser = async (req, res) => {
-    const validatedData = loginSchema.parse(req.body)
-    const { email, password } = validatedData;
-
-    const foundUser = await prisma.user.findUnique({ where: { email } })
-
-    if (!foundUser) return res.status(404).json("User Not Found")
-    // if (!foundUser.isVerified) return res.status(400).json('Please verify your account first');
-
-    const validPassword = bcrypt.compareSync(password, foundUser.password);
-
-    if (!validPassword) return res.status(404).json('Invalid password');
-
-    const accessToken = generateAccesstoken(foundUser);
-    const refreshToken = generateRefreshToken(foundUser);
-
     try {
-        const updatedUser = await prisma.user.update({
-            where: { id: foundUser.id },
-            data: { refreshToken }
-        });
+        // Validate input with zod
+        const { email, phone_number, password } = loginSchema.parse(req.body);
 
-        return res.json({ accessToken, refreshToken, user: updatedUser })
-
-    } catch (error) {
-        if (error instanceof z.ZodError) {
-            return res.status(400).json({
-                success: false,
-                errors: error.errors.map((e) => e.message)
-            });
+        // Build where clause dynamically
+        let where = {};
+        if (email) {
+            where.email = email;
+        } else if (phone_number) {
+            where.phone_number = phone_number;
+        } else {
+            return res.status(400).json({ message: "Email or phone number is required" });
         }
-        res.status(400).json({ success: false, message: error.message });
+
+        // Find user
+        const user = await prisma.user.findUnique({ where });
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Compare password
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) {
+            return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        // Generate tokens
+        const accessToken = generateAccesstoken(user);
+        const refreshToken = generateRefreshToken(user);
+
+        res.json({ success: true, accessToken, refreshToken, user });
+    } catch (error) {
+        console.error(error);
+        res.status(400).json({ success: false, error: error.message });
     }
-}
+};
 
 export {
     loginUser
