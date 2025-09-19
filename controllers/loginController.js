@@ -8,17 +8,28 @@ import { prisma } from '../config/prisma.js'
 
 //! Login User
 const loginUser = async (req, res) => {
-    const validatedData = loginSchema.parse(req.body)
+    let validatedData;
+    try {
+        validatedData = loginSchema.parse(req.body);
+        console.log('validatedDatavalidatedData', validatedData);
+    } catch (err) {
+        if (err instanceof z.ZodError) {
+            return res.status(400).json({ success: false, errors: err.errors });
+        }
+        return res.status(500).json({ success: false, message: 'Server error' });
+    }
+
     const { email, password } = validatedData;
 
-    const foundUser = await prisma.user.findUnique({ where: { email } })
-
-    if (!foundUser) return res.status(404).json("User Not Found")
-    // if (!foundUser.isVerified) return res.status(400).json('Please verify your account first');
+    const foundUser = await prisma.user.findUnique({ where: { email } });
+    if (!foundUser) {
+        return res.status(404).json("User Not Found");
+    }
 
     const validPassword = bcrypt.compareSync(password, foundUser.password);
-
-    if (!validPassword) return res.status(404).json('Invalid password');
+    if (!validPassword) {
+        return res.status(401).json('Invalid credentials');
+    }
 
     const accessToken = generateAccesstoken(foundUser);
     const refreshToken = generateRefreshToken(foundUser);
@@ -29,18 +40,17 @@ const loginUser = async (req, res) => {
             data: { refreshToken }
         });
 
-        return res.json({ accessToken, refreshToken, user: updatedUser })
+        return res.json({
+            success: true,
+            accessToken,
+            refreshToken,
+            user: updatedUser
+        });
 
     } catch (error) {
-        if (error instanceof z.ZodError) {
-            return res.status(400).json({
-                success: false,
-                errors: error.errors.map((e) => e.message)
-            });
-        }
-        res.status(400).json({ success: false, message: error.message });
+        return res.status(400).json({ success: false, message: error.message });
     }
-}
+};
 
 export {
     loginUser
