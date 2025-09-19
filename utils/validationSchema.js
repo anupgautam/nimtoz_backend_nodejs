@@ -270,15 +270,18 @@ export const registerSchema = z.object({
 //! User Login Schema Validation
 export const loginSchema = z.object({
     id: z.coerce.number().optional(),
-    email: z.string().email('Invalid email address'),
-    password: z
-        .string()
+    email: z.string().email("Invalid email address").optional(),
+    phone_number: z.string().regex(/^\d+$/, "Phone number must contain only digits").optional(),
+    password: z.string()
         .min(8, "Password must be at least 8 characters long")
         .regex(/\d/, "Password must contain at least one number")
         .refine((val) => /[A-Za-z]/.test(val), {
             message: "Password must contain at least one letter",
         }),
-})
+}).refine(
+    (data) => data.email || data.phone_number,
+    { message: "Either email or phone_number is required", path: ["email"] }
+);
 
 //! Forgot password validation
 export const forgotPasswordSchema = z.object({
