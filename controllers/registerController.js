@@ -22,6 +22,7 @@ const sendOTPEmail = async (email, otp) => {
         subject: 'Your OTP Code',
         text: `Your OTP code is: ${otp}`,
     });
+    console.log('transporter', transporter);
 }
 
 
