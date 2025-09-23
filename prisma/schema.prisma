@@ -169,6 +169,7 @@ model Multimedia {
     id              Int     @id @default(autoincrement())
     multimedia_name String
     price           Int
+    offerPrice      Int? 
     description     String?
 
     createdAt DateTime @default(now()) @map("created_at")
@@ -184,6 +185,7 @@ model Musical {
     id              Int     @id @default(autoincrement())
     instrument_name String
     price           Int
+    offerPrice      Int? 
     description     String?
 
     createdAt DateTime @default(now()) @map("created_at")
@@ -199,6 +201,7 @@ model Luxury {
     id          Int     @id @default(autoincrement())
     luxury_name String
     price       Int
+    offerPrice  Int? 
     description String?
 
     createdAt DateTime @default(now()) @map("created_at")
@@ -214,6 +217,7 @@ model Entertainment {
     id                 Int     @id @default(autoincrement())
     entertainment_name String
     price              Int
+    offerPrice         Int? 
     description        String?
 
     createdAt DateTime @default(now()) @map("created_at")
@@ -229,6 +233,7 @@ model Meeting {
     id           Int     @id @default(autoincrement())
     meeting_name String
     price        Int
+    offerPrice   Int? 
     description  String?
 
     createdAt DateTime @default(now()) @map("created_at")
@@ -245,6 +250,7 @@ model BeautyDecor {
     id          Int     @id @default(autoincrement())
     beauty_name String
     price       Int
+    offerPrice  Int? 
     description String?
 
     createdAt DateTime @default(now()) @map("created_at")
@@ -260,6 +266,7 @@ model Adventure {
     id             Int     @id @default(autoincrement())
     adventure_name String
     price          Int
+    offerPrice     Int? 
     description    String?
 
     createdAt DateTime @default(now()) @map("created_at")
@@ -275,6 +282,7 @@ model PartyPalace {
     id               Int     @id @default(autoincrement())
     partypalace_name String
     price            Int
+    offerPrice       Int? 
     description      String?
 
     createdAt DateTime @default(now()) @map("created_at")
@@ -290,6 +298,7 @@ model CateringTent {
     id            Int     @id @default(autoincrement())
     catering_name String
     price         Int
+    offerPrice    Int? 
     description   String?
 
     createdAt DateTime @default(now()) @map("created_at")
