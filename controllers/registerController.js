@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { generateAccesstoken, generateRefreshToken } from "../auth/generateTokens.js";
 import { z } from 'zod'
 import nodemailer from 'nodemailer'
+import axios from "axios";
 
 import { prisma } from '../config/prisma.js'
 
@@ -24,6 +25,25 @@ const sendOTPEmail = async (email, otp) => {
     });
     console.log('transporter', transporter);
 }
+
+const sendOTPSMS = async (phone, otp) => {
+    const apiKey = process.env.SMS_API_KEY; 
+    const senderId = "FSN_Alert"; 
+    const message = `Your OTP code is: ${otp}`;
+  
+    try {
+      const url = `https://samayasms.com.np/smsapi/index?key=${apiKey}&contacts=${phone}&senderid=${senderId}&msg=${encodeURIComponent(
+        message
+      )}&responsetype=json`;
+  
+      const response = await axios.get(url);
+      console.log("SMS Response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("Error sending SMS:", error.message);
+      throw new Error("Failed to send SMS");
+    }
+  };
 
 
 //! Get All Users
@@ -168,7 +188,7 @@ const createUser = async (req, res) => {
             }
         })
 
-        await sendOTPEmail(email, otp);
+        await sendOTPSMS(phone_number, otp);
 
         res.status(201).json({ success: true, message: 'User registered successfully.', user: user });
 
