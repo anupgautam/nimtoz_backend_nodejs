@@ -48,10 +48,10 @@ app.use('/uploads', express.static('uploads'));
 //! Built in middleware
 //* built in middleware to handle urlencoded data or formdata
 //* content-type: application/x-www-form-urlencoded
-app.use(express.urlencoded({ extended: false }))
+app.use(express.urlencoded({ extended: false, limit: '70mb' }))
 
 //* middleware for json
-app.use(express.json())
+app.use(express.json({ limit: '70mb' }))
 app.use(cookieParser())
 app.use(customLogger)
 
