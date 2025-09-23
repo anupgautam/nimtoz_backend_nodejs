@@ -10,13 +10,11 @@ import { prisma } from '../config/prisma.js'
 const loginUser = async (req, res) => {
     try {
         // Validate input with zod
-        const { email, phone_number, password } = loginSchema.parse(req.body);
+        const { phone_number, password } = loginSchema.parse(req.body);
 
         // Build where clause dynamically
         let where = {};
-        if (email) {
-            where.email = email;
-        } else if (phone_number) {
+        if (phone_number) {
             where.phone_number = phone_number;
         } else {
             return res.status(400).json({ message: "Email or phone number is required" });
