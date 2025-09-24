@@ -12,10 +12,8 @@ const ratingSchema = z.object({
 const addOrUpdateRating = async (req, res) => {
     try {
         const validatedData = ratingSchema.parse(req.body);
-        const { productId, rating, review } = validatedData;
+        const { productId, rating, review, userId, } = validatedData;
 
-        // assuming `req.user` is set by your auth middleware
-        const userId = req.user?.id;
         if (!userId) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
