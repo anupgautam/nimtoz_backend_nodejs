@@ -82,6 +82,11 @@ app.use('/productimages/:id', getProductImagesById)
 app.use('/productcategoryid/:id', getCategoryByProductId)
 app.use('/stat-blogs', getStatBlogs)
 
+app.post("/product/rating", authMiddleware, addOrUpdateRating); 
+app.get("/product/rating:productId", getProductRatings); 
+app.get("/product/rating/overall:productId", getProductOverallRating); 
+app.delete("/product/rating:id", authMiddleware, deleteRating);
+
 app.get('/404', (req, res) => {
     res.sendStatus(404);
 })
