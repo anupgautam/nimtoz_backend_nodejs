@@ -29,6 +29,7 @@ import { getStatBlogs } from './controllers/blogController.js';
 import { globalErrorHandler } from './middleware/globalErrorHandler.js';
 import { verifyOTP } from './controllers/verifyOTPController.js';
 import { authenticateToken, authorizeRole } from './middleware/authentication.js';
+import { addOrUpdateRating, deleteRating, getProductOverallRating, getProductRatings } from './controllers/productRatingController.js';
 
 const PORT = process.env.PORT || 1000;
 
