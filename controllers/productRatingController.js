@@ -4,26 +4,23 @@ import { z } from "zod";
 // ✅ Validation schema
 const ratingSchema = z.object({
     productId: z.number(),
+    userId: z.number(), // ✅ add this
     rating: z.number().min(1).max(5),
     review: z.string().optional(),
 });
 
 //! Add or Update Product Rating
 const addOrUpdateRating = async (req, res) => {
-    console.log('req.body', req.body);
     try {
         const validatedData = ratingSchema.parse(req.body);
         const { productId, rating, review, userId } = validatedData;
-     
-
-        // if (!userId) {
-        //     return res.status(401).json({ success: false, message: "Unauthorized" });
-        // }
 
         const productRating = await prisma.productRating.upsert({
             where: {
-                productId: productId,
-                userId: userId,
+                userId_productId: {  // ✅ match your @@unique([userId, productId])
+                    userId,
+                    productId
+                }
             },
             update: { rating, review },
             create: { userId, productId, rating, review },
@@ -45,6 +42,7 @@ const addOrUpdateRating = async (req, res) => {
             rating: productRating,
             overall_rating: agg._avg.rating || 0,
         });
+
     } catch (error) {
         if (error instanceof z.ZodError) {
             return res.status(400).json({
