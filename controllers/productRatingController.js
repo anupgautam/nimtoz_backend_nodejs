@@ -58,7 +58,7 @@ const addOrUpdateRating = async (req, res) => {
 const getProductRatings = async (req, res) => {
     console.log('req.params', req.params);
     try {
-        const productId = Number(req.params.productId);
+        const productId = Number(req.params.id);
         if (isNaN(productId)) {
             return res.status(400).json({ success: false, error: "Invalid productId" });
         }
