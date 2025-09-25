@@ -65,16 +65,6 @@ const getProductRatings = async (req, res) => {
         // Get all ratings for this product with user info
         const ratings = await prisma.productRating.findMany({
             where: { productId },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        firstname: true,
-                        lastname: true,
-                        profile_picture: true,
-                    },
-                },
-            },
             orderBy: { createdAt: "desc" },
         });
 
