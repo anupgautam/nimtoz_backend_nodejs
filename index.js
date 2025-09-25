@@ -43,7 +43,12 @@ const app = express()
 //     }
 // }));
 
-app.use(cors(corsOptions))
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+}));
 // app.options('*', cors(corsOptions));
 app.use('/uploads', express.static('uploads'));
 
