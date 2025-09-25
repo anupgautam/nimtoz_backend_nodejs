@@ -63,12 +63,7 @@ const getProductRatings = async (req, res) => {
             where: { productId: Number(productId) },
             include: {
                 user: {
-                    select: {
-                        id: true,
-                        firstname: true,
-                        lastname: true,
-                        profile_picture: true,
-                    },
+                    select: { id: true, firstname: true, lastname: true, profile_picture: true },
                 },
             },
             orderBy: { createdAt: "desc" },
