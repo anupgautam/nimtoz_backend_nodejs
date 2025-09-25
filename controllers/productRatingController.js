@@ -87,6 +87,7 @@ const getProductRatings = async (req, res) => {
 
 //! Get Product Overall Rating
 const getProductOverallRating = async (req, res) => {
+    console.log('hello');
     try {
         const ratings = await prisma.productRating.findMany({
             orderBy: { createdAt: "desc" },
