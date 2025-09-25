@@ -90,8 +90,8 @@ app.use('/productcategoryid/:id', getCategoryByProductId)
 app.use('/stat-blogs', getStatBlogs)
 
 app.post("/product/rating", addOrUpdateRating);
-app.get("/product/rating:id", getProductRatings);
-app.get("/product/rating/overall:productId", getProductOverallRating);
+app.get("/product/rating/:id", getProductRatings);
+app.get("/product/rating/overall/:productId", getProductOverallRating);
 app.delete("/product/rating:id", deleteRating);
 
 app.get('/404', (req, res) => {
