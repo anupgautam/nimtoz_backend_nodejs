@@ -56,14 +56,13 @@ const addOrUpdateRating = async (req, res) => {
 
 //! Get All Ratings for a Product
 const getProductRatings = async (req, res) => {
-    console.log('req.params', req.params);
     try {
-        const productId = Number(req.params.id);
+        const productId = Number(req.params.id); // or req.params.productId
         if (isNaN(productId)) {
             return res.status(400).json({ success: false, error: "Invalid productId" });
         }
 
-        // Get all ratings for this product
+        // Get all ratings for this product with user info
         const ratings = await prisma.productRating.findMany({
             where: { productId },
             include: {
