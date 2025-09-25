@@ -21,10 +21,8 @@ const addOrUpdateRating = async (req, res) => {
 
         const productRating = await prisma.productRating.upsert({
             where: {
-                userId_productId: {
-                    userId,
-                    productId,
-                },
+                productId: productId,
+                userId: userId,
             },
             update: { rating, review },
             create: { userId, productId, rating, review },
