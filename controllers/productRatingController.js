@@ -88,21 +88,17 @@ const getProductRatings = async (req, res) => {
 //! Get Product Overall Rating
 const getProductOverallRating = async (req, res) => {
     try {
-        const { productId } = req.params;
-
-        const product = await prisma.product.findUnique({
-            where: { id: Number(productId) },
-            select: { id: true, title: true, overall_rating: true },
+        const ratings = await prisma.productRating.findMany({
+            orderBy: { createdAt: "desc" },
         });
 
-        if (!product) {
-            return res
-                .status(404)
-                .json({ success: false, message: "Product not found" });
-        }
 
-        res.status(200).json({ success: true, product });
+        res.status(200).json({
+            success: true,
+            ratings,
+        });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, error: error.message });
     }
 };
