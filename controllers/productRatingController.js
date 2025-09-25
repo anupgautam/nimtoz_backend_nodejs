@@ -13,6 +13,7 @@ const addOrUpdateRating = async (req, res) => {
     try {
         const validatedData = ratingSchema.parse(req.body);
         const { productId, rating, review, userId, } = validatedData;
+        console.log('req.body', req.body);
 
         if (!userId) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
