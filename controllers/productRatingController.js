@@ -10,16 +10,14 @@ const ratingSchema = z.object({
 
 //! Add or Update Product Rating
 const addOrUpdateRating = async (req, res) => {
-    console.log('req.body', req.body);
     try {
         const validatedData = ratingSchema.parse(req.body);
-        const { productId, rating, review, userId, } = validatedData;
+        const { productId, rating, review, userId } = validatedData;
 
         if (!userId) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
 
-        // Upsert rating (update if exists, else create)
         const productRating = await prisma.productRating.upsert({
             where: {
                 userId_productId: {
@@ -31,7 +29,6 @@ const addOrUpdateRating = async (req, res) => {
             create: { userId, productId, rating, review },
         });
 
-        // Recalculate average rating for the product
         const agg = await prisma.productRating.aggregate({
             where: { productId },
             _avg: { rating: true },
