@@ -84,10 +84,10 @@ app.use('/productimages/:id', getProductImagesById)
 app.use('/productcategoryid/:id', getCategoryByProductId)
 app.use('/stat-blogs', getStatBlogs)
 
-app.post("/product/rating", authenticateToken, authorizeRole('USER'), addOrUpdateRating);
+app.post("/product/rating", addOrUpdateRating);
 app.get("/product/rating:productId", getProductRatings);
 app.get("/product/rating/overall:productId", getProductOverallRating);
-app.delete("/product/rating:id", authenticateToken, authorizeRole('SUPER_ADMIN', 'ADMIN'), deleteRating);
+app.delete("/product/rating:id", deleteRating);
 
 app.get('/404', (req, res) => {
     res.sendStatus(404);
