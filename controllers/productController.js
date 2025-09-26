@@ -264,154 +264,129 @@ const getBookingProductsById = async (req, res) => {
 //! Get HomePage Products 
 const getHomePageProducts = async (req, res) => {
     try {
-        const { search = "", category = "", location: district = "" } = req.query;
-
-        // Build the `where` condition dynamically
-        const whereClause = {
-
-            Venue: {
-                active: true
-            }
+      const { search = "", category = "", location: district = "" } = req.query;
+  
+      // Build the `where` condition dynamically
+      const whereClause = {
+        Venue: {
+          is: {
+            active: true, // ✅ Only include products whose Venue is active
+          },
+        },
+      };
+  
+      if (search) {
+        whereClause.title = {
+          contains: search,
         };
-
-        if (search) {
-            whereClause.title = {
-                contains: search,
-            };
-        }
-
-        if (category) {
-            whereClause.category = {
-                category_name: category,
-            };
-        }
-        if (district) {
-            whereClause.districtId = parseInt(district);  // Ensure district is being passed as an integer
-        }
-
-        // Fetch the products based on the query parameters (all products if no filter is provided)
-        const products = await prisma.product.findMany({
-            where: Object.keys(whereClause).length ? whereClause : undefined,
-            include: {
-                product_image: true,
-                District: {
-                    select: {
-                        district_name: true
-                    }
-                },
-                //!1.  Add other categories if needed
-                multimedia: {
-                    select: {
-                        price: true,
-                        multimedia_name: true
-                    },
-                    take: 1,
-                    orderBy: { price: 'asc' }
-                },
-                entertainment: {
-                    select: {
-                        entertainment_name: true,
-                        price: true,
-                    },
-                    take: 1,
-                    orderBy: { price: 'asc' }
-                },
-                musical: {
-                    select: {
-                        instrument_name: true,
-                        price: true,
-                    },
-                    take: 1,
-                    orderBy: { price: 'asc' }
-                },
-                cateringtent: {
-                    select: {
-                        catering_name: true,
-                        price: true,
-                    },
-                    take: 1,
-                    orderBy: { price: 'asc' }
-                },
-                adventure: {
-                    select: {
-                        adventure_name: true,
-                        price: true,
-                    },
-                    take: 1,
-                    orderBy: { price: 'asc' }
-                },
-                luxury: {
-                    select: {
-                        luxury_name: true,
-                        price: true,
-                    },
-                    take: 1,
-                    orderBy: { price: 'asc' }
-                },
-                meeting: {
-                    select: {
-                        meeting_name: true,
-                        price: true,
-                    },
-                    take: 1,
-                    orderBy: { price: 'asc' }
-                },
-                partypalace: {
-                    select: {
-                        partypalace_name: true,
-                        price: true,
-                    },
-                    take: 1,
-                    orderBy: { price: 'asc' }
-                },
-                beautydecor: {
-                    select: {
-                        beauty_name: true,
-                        price: true,
-                    },
-                    take: 1,
-                    orderBy: { price: 'asc' }
-                },
+      }
+  
+      if (category) {
+        whereClause.category = {
+          is: {
+            category_name: category,
+          },
+        };
+      }
+  
+      if (district) {
+        whereClause.districtId = parseInt(district); // Ensure district is integer
+      }
+  
+      // Fetch the products
+      const products = await prisma.product.findMany({
+        where: Object.keys(whereClause).length ? whereClause : undefined,
+        include: {
+          product_image: true,
+  
+          District: {
+            select: {
+              district_name: true,
             },
-            orderBy: {
-                updatedAt: "desc"
-            }
-        });
-
-        // Calculate the minimum price for each product based on related categories' minimum prices
-        const productsWithMinPrice = products.map(product => {
-            const minPrice = Math.min(
-                ...(product.multimedia.map(item => item.price) || []),
-                ...(product.entertainment.map(item => item.price) || []),
-                ...(product.musical.map(item => item.price) || []),
-                ...(product.partypalace.map(item => item.price) || []),
-                ...(product.beautydecor.map(item => item.price) || []),
-                ...(product.adventure.map(item => item.price) || []),
-                ...(product.luxury.map(item => item.price) || []),
-                ...(product.cateringtent.map(item => item.price) || []),
-                ...(product.meeting.map(item => item.price) || []),
-            );
-
-            return {
-                ...product,
-                minPrice: minPrice || 0  // Set to 0 if no price data exists
-            };
-        });
-
-        // Respond with the products
-        res.json(productsWithMinPrice);
-
-
+          },
+          multimedia: {
+            select: { price: true, multimedia_name: true },
+            take: 1,
+            orderBy: { price: "asc" },
+          },
+          entertainment: {
+            select: { entertainment_name: true, price: true },
+            take: 1,
+            orderBy: { price: "asc" },
+          },
+          musical: {
+            select: { instrument_name: true, price: true },
+            take: 1,
+            orderBy: { price: "asc" },
+          },
+          cateringtent: {
+            select: { catering_name: true, price: true },
+            take: 1,
+            orderBy: { price: "asc" },
+          },
+          adventure: {
+            select: { adventure_name: true, price: true },
+            take: 1,
+            orderBy: { price: "asc" },
+          },
+          luxury: {
+            select: { luxury_name: true, price: true },
+            take: 1,
+            orderBy: { price: "asc" },
+          },
+          meeting: {
+            select: { meeting_name: true, price: true },
+            take: 1,
+            orderBy: { price: "asc" },
+          },
+          partypalace: {
+            select: { partypalace_name: true, price: true },
+            take: 1,
+            orderBy: { price: "asc" },
+          },
+          beautydecor: {
+            select: { beauty_name: true, price: true },
+            take: 1,
+            orderBy: { price: "asc" },
+          },
+        },
+        orderBy: {
+          updatedAt: "desc",
+        },
+      });
+  
+      // Calculate the minimum price per product
+      const productsWithMinPrice = products.map((product) => {
+        const minPrice = Math.min(
+          ...(product.multimedia.map((item) => item.price) || []),
+          ...(product.entertainment.map((item) => item.price) || []),
+          ...(product.musical.map((item) => item.price) || []),
+          ...(product.partypalace.map((item) => item.price) || []),
+          ...(product.beautydecor.map((item) => item.price) || []),
+          ...(product.adventure.map((item) => item.price) || []),
+          ...(product.luxury.map((item) => item.price) || []),
+          ...(product.cateringtent.map((item) => item.price) || []),
+          ...(product.meeting.map((item) => item.price) || [])
+        );
+  
+        return {
+          ...product,
+          minPrice: Number.isFinite(minPrice) ? minPrice : 0, // fallback to 0
+        };
+      });
+  
+      res.json(productsWithMinPrice);
     } catch (error) {
-        if (error instanceof z.ZodError) {
-            return res.status(400).json({
-                success: false,
-                errors: error.errors.map((e) => e.message)
-            });
-        }
-        res.status(400).json({ error: error.message });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          success: false,
+          errors: error.errors.map((e) => e.message),
+        });
+      }
+      res.status(400).json({ error: error.message });
     }
-}
+  };
+  
 //! Get Product by Id
 const getProductById = async (req, res) => {
     const { id } = req.params;
