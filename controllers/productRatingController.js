@@ -1,12 +1,19 @@
 import { prisma } from "../config/prisma.js";
+import { z } from "zod";
 
+// ✅ Validation schema
+const ratingSchema = z.object({
+    productId: z.number(),
+    userId: z.number(), // ✅ add this
+    rating: z.number().min(1).max(5),
+    review: z.string().optional(),
+});
 
 //! Add or Update Product Rating
 const addOrUpdateRating = async (req, res) => {
-    console.log('hello')
-    console.log('req.body', req.body);
     try {
-        const { productId, rating, review, userId } = req.body;
+        const validatedData = ratingSchema.parse(req.body);
+        const { productId, rating, review, userId } = validatedData;
 
         const productRating = await prisma.productRating.upsert({
             where: {
@@ -37,13 +44,12 @@ const addOrUpdateRating = async (req, res) => {
         });
 
     } catch (error) {
-        // if (error instanceof z.ZodError) {
-        //     return res.status(400).json({
-        //         success: false,
-        //         errors: error.errors.map((e) => e.message),
-        //     });
-        // }
-        console.log('hello1')
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({
+                success: false,
+                errors: error.errors.map((e) => e.message),
+            });
+        }
         res.status(500).json({ success: false, error: error.message });
     }
 };
