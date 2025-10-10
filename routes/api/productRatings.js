@@ -9,10 +9,10 @@ const router = express.Router();
 
 router.route('/')
     .get(getProductOverallRating)
-    .post(authenticateToken, authorizeRole('USER'), addOrUpdateRating)
+    .post(addOrUpdateRating)
 
 router.route('/:id')
     .get(getProductRatings)
-    .delete(authenticateToken, authorizeRole('ADMIN', 'USER'), deleteRating)
+    .delete(deleteRating)
 
 export default router;
