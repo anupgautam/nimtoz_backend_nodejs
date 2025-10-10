@@ -56,11 +56,14 @@ const addOrUpdateRating = async (req, res) => {
 
 const getProductRatings = async (req, res) => {
     try {
-        // Try reading both params and query
+        // Read product ID from either params or query
         const productId = Number(req.params.id || req.query.id);
 
         if (!productId || isNaN(productId)) {
-            return res.status(400).json({ success: false, error: "Invalid product ID" });
+            return res.status(400).json({
+                success: false,
+                error: "Invalid product ID",
+            });
         }
 
         // Check if product exists
@@ -69,13 +72,25 @@ const getProductRatings = async (req, res) => {
         });
 
         if (!productExists) {
-            return res.status(404).json({ success: false, message: "Product not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Product not found",
+            });
         }
 
-        // Fetch all ratings for this product
+        // Fetch all ratings for this product (with user info)
         const ratings = await prisma.productRating.findMany({
             where: { productId },
-            include: { User: true },
+            include: {
+                User: {
+                    select: {
+                        id: true,
+                        firstname: true,
+                        lastname: true,
+                        avatar: true,
+                    },
+                },
+            },
             orderBy: { createdAt: "desc" },
         });
 
@@ -87,12 +102,6 @@ const getProductRatings = async (req, res) => {
 
         const overallRating = agg?._avg?.rating ?? 0;
 
-        // // ✅ Update only the overall_rating field
-        // await prisma.product.update({
-        //     where: { id: productId },
-        //     data: { overall_rating: overallRating },
-        // });
-
         // Send response
         res.status(200).json({
             success: true,
@@ -103,9 +112,13 @@ const getProductRatings = async (req, res) => {
         });
     } catch (error) {
         console.error("Error fetching product ratings:", error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({
+            success: false,
+            error: error.message,
+        });
     }
 };
+
 
 
 
