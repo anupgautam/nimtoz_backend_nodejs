@@ -8,28 +8,22 @@ const ratingSchema = z.object({
     review: z.string().optional(),
 });
 
-//! Add or Update Product Rating
-const addOrUpdateRating = async (req, res) => {
+export const addOrUpdateRating = async (req, res) => {
     try {
-        // Validate request body
         const validatedData = ratingSchema.parse(req.body);
         const { productId, userId, rating, review } = validatedData;
 
-        // Check if product exists
-        const product = await prisma.product.findUnique({
-            where: { id: productId },
-            select: { id: true }, // Only select id, we don't need other fields
-        });
-
+        // Ensure product exists
+        const product = await prisma.product.findUnique({ where: { id: productId } });
         if (!product) {
             return res.status(404).json({ success: false, error: "Product not found" });
         }
 
-        // Upsert rating (add new or update existing)
+        // Upsert product rating
         const productRating = await prisma.productRating.upsert({
             where: { userId_productId: { userId, productId } },
-            update: { rating, review },   // update existing rating/review
-            create: { userId, productId, rating, review }, // create new rating
+            update: { rating, review },
+            create: { userId, productId, rating, review },
         });
 
         // Recalculate overall rating
@@ -38,7 +32,7 @@ const addOrUpdateRating = async (req, res) => {
             _avg: { rating: true },
         });
 
-        // Update only overall_rating field
+        // Update only the overall_rating field
         const updatedProduct = await prisma.product.update({
             where: { id: productId },
             data: { overall_rating: agg._avg.rating || 0 },
@@ -46,7 +40,7 @@ const addOrUpdateRating = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message: "Rating saved successfully.",
+            message: "Rating saved successfully",
             rating: productRating,
             overall_rating: updatedProduct.overall_rating,
         });
@@ -58,8 +52,7 @@ const addOrUpdateRating = async (req, res) => {
                 errors: error.errors.map((e) => e.message),
             });
         }
-
-        console.error("Error adding/updating rating:", error);
+        console.error(error);
         return res.status(500).json({ success: false, error: error.message });
     }
 };
