@@ -90,7 +90,7 @@ app.use('/productcategoryid/:id', getCategoryByProductId)
 app.use('/product/:id', updateProduct)
 app.use('/stat-blogs', getStatBlogs)
 
-app.post("/product/rating", addOrUpdateRating);
+// app.post("/product/rating", addOrUpdateRating);
 app.get("/product/rating/:id", getProductRatings);
 app.get("/product/rating/overall/", getProductOverallRating);
 app.delete("/product/rating:id", deleteRating);
