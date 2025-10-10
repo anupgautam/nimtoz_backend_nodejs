@@ -3,8 +3,9 @@ import { prisma } from "../config/prisma.js";
 
 //! Add or Update Product Rating
 const addOrUpdateRating = async (req, res) => {
+    console.log('hello')
+    console.log('req.body', req.body);
     try {
-        // const validatedData = ratingSchema.parse(req.body;
         const { productId, rating, review, userId } = req.body;
 
         const productRating = await prisma.productRating.upsert({
@@ -42,6 +43,7 @@ const addOrUpdateRating = async (req, res) => {
         //         errors: error.errors.map((e) => e.message),
         //     });
         // }
+        console.log('hello1')
         res.status(500).json({ success: false, error: error.message });
     }
 };
