@@ -9,7 +9,7 @@ const ratingSchema = z.object({
 });
 
 //! Add or Update Product Rating
-export const addOrUpdateRating = async (req, res) => {
+const addOrUpdateRating = async (req, res) => {
     try {
         // Validate and parse data
         const validatedData = ratingSchema.parse(req.body);
