@@ -165,7 +165,7 @@ const createUser = async (req, res) => {
     })
 
     if (existingUser) {
-        return res.status(400).json({ error: `User with this phone number ${existingUser.phone_number} already exists` })
+        return res.status(400).json({ error: `User with this phone number ${existingUser.phone_number} & email ${existingUser.email} already exists` })
     }
 
     try {
