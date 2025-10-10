@@ -13,13 +13,11 @@ const addOrUpdateRating = async (req, res) => {
         const validatedData = ratingSchema.parse(req.body);
         const { productId, userId, rating, review } = validatedData;
 
-        // Ensure product exists
-        const product = await prisma.product.findUnique({ where: { id: productId } });
-        if (!product) {
-            return res.status(404).json({ success: false, error: "Product not found" });
+        if (isNaN(productId)) {
+            return res.status(400).json({ success: false, error: "Invalid product ID" });
         }
 
-        // Upsert product rating
+        // Upsert the rating
         const productRating = await prisma.productRating.upsert({
             where: { userId_productId: { userId, productId } },
             update: { rating, review },
@@ -32,7 +30,7 @@ const addOrUpdateRating = async (req, res) => {
             _avg: { rating: true },
         });
 
-        // Update only the overall_rating field
+        // Update only overall_rating
         const updatedProduct = await prisma.product.update({
             where: { id: productId },
             data: { overall_rating: agg._avg.rating || 0 },
@@ -40,7 +38,7 @@ const addOrUpdateRating = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message: "Rating saved successfully",
+            message: "Rating saved successfully.",
             rating: productRating,
             overall_rating: updatedProduct.overall_rating,
         });
