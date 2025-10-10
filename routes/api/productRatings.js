@@ -1,6 +1,6 @@
 import express from 'express';
 import { addOrUpdateRating, deleteRating, getProductOverallRating, getProductRatings } from '../../controllers/productRatingController';
-import { authenticateToken } from '../../middleware/authentication';
+import { authenticateToken, authorizeRole } from '../../middleware/authentication';
 
 
 const router = express.Router();

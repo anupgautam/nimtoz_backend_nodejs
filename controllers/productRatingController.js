@@ -11,7 +11,6 @@ const ratingSchema = z.object({
 
 //! Add or Update Product Rating
 const addOrUpdateRating = async (req, res) => {
-    console.log('req.body', req.body);
     try {
         // const validatedData = ratingSchema.parse(req.body;
         const { productId, rating, review, userId } = req.body;

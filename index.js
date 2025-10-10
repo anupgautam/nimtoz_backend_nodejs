@@ -20,7 +20,6 @@ import eventType from './routes/api/eventType.js'
 import forgotPassword from './routes/api/forgotPassword.js'
 import resetPassword from './routes/api/resetPassword.js'
 import stats from './routes/api/statistics.js'
-import compression from 'compression'
 import { countCategory, getCategoryByProductId } from './controllers/categoriesController.js';
 import { getTopBookers } from './controllers/registerController.js';
 import { getBookingStats } from './controllers/bookingController.js';
@@ -28,8 +27,6 @@ import { getBookingProducts, getBookingProductsById, getHomePageProducts, getPro
 import { getStatBlogs } from './controllers/blogController.js';
 import { globalErrorHandler } from './middleware/globalErrorHandler.js';
 import { verifyOTP } from './controllers/verifyOTPController.js';
-import { authenticateToken, authorizeRole } from './middleware/authentication.js';
-import { addOrUpdateRating, deleteRating, getProductOverallRating, getProductRatings } from './controllers/productRatingController.js';
 import ProductRating from "./routes/api/productRatings.js";
 
 const PORT = process.env.PORT || 1000;
@@ -91,10 +88,6 @@ app.use('/productcategoryid/:id', getCategoryByProductId)
 app.use('/product/:id', updateProduct)
 app.use('/stat-blogs', getStatBlogs)
 
-// app.post("/product/rating/ratings/", addOrUpdateRating);
-// app.get("/product/rating/:id", getProductRatings);
-// app.get("/product/rating/overall/", getProductOverallRating);
-// app.delete("/product/rating:id", deleteRating);
 app.use('/product/rating/', ProductRating);
 
 app.get('/404', (req, res) => {
