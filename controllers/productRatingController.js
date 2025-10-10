@@ -29,6 +29,8 @@ const addOrUpdateRating = async (req, res) => {
             _avg: { rating: true },
         });
 
+        console.log('aggagg', agg);
+
         // ✅ Update ONLY overall_rating
         const updatedProduct = await prisma.product.update({
             where: { id: productId },
