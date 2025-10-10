@@ -8,16 +8,15 @@ const ratingSchema = z.object({
     review: z.string().optional(),
 });
 
-const addOrUpdateRating = async (req, res) => {
+export const addOrUpdateRating = async (req, res) => {
     try {
-        const validatedData = ratingSchema.parse(req.body);
-        const { productId, userId, rating, review } = validatedData;
+        const { productId, userId, rating, review } = ratingSchema.parse(req.body);
 
         if (isNaN(productId)) {
             return res.status(400).json({ success: false, error: "Invalid product ID" });
         }
 
-        // Upsert the rating
+        // Upsert rating
         const productRating = await prisma.productRating.upsert({
             where: { userId_productId: { userId, productId } },
             update: { rating, review },
@@ -38,11 +37,10 @@ const addOrUpdateRating = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message: "Rating saved successfully.",
+            message: "Rating saved successfully",
             rating: productRating,
             overall_rating: updatedProduct.overall_rating,
         });
-
     } catch (error) {
         if (error instanceof z.ZodError) {
             return res.status(400).json({
