@@ -9,27 +9,33 @@ const ratingSchema = z.object({
 });
 
 //! Add or Update Product Rating
-const addOrUpdateRating = async (req, res) => {
+export const addOrUpdateRating = async (req, res) => {
     try {
-        // Validate and parse data
+        // Validate request body
         const validatedData = ratingSchema.parse(req.body);
         const { productId, userId, rating, review } = validatedData;
 
-        // Upsert (add or update) the rating
+        // Check if productId is valid
+        if (isNaN(productId)) {
+            return res.status(400).json({ success: false, error: "Invalid product ID" });
+        }
+
+        // Upsert rating (add new or update existing)
         const productRating = await prisma.productRating.upsert({
             where: {
                 userId_productId: { userId, productId },
             },
-            update: { rating, review },   // update existing
-            create: { userId, productId, rating, review }, // create new
+            update: { rating, review },   // update existing rating/review
+            create: { userId, productId, rating, review }, // create new rating
         });
 
-        // Recalculate overall product rating
+        // Recalculate overall rating
         const agg = await prisma.productRating.aggregate({
             where: { productId },
             _avg: { rating: true },
         });
 
+        // Update only the overall_rating field in Product
         await prisma.product.update({
             where: { id: productId },
             data: { overall_rating: agg._avg.rating || 0 },
@@ -49,6 +55,7 @@ const addOrUpdateRating = async (req, res) => {
                 errors: error.errors.map((e) => e.message),
             });
         }
+
         console.error("Error adding/updating rating:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
