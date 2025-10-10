@@ -266,11 +266,10 @@ const getHomePageProducts = async (req, res) => {
     try {
       const { search = "", category = "", location: district = "" } = req.query;
   
-      // Build the `where` condition dynamically
       const whereClause = {
         Venue: {
           is: {
-            active: true, // ✅ Only include products whose Venue is active
+            active: true,
           },
         },
       };

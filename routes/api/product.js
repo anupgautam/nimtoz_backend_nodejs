@@ -30,7 +30,7 @@ router.route('/')
 
 router.route('/:id')
     .get(getProductById)
-    .put(authenticateToken, authorizeRole('ADMIN'), upload.array('product_image', 10), updateProduct)
+    .patch(authenticateToken, authorizeRole('ADMIN'), upload.array('product_image', 10), updateProduct)
     .delete(authenticateToken, authorizeRole('ADMIN'), deleteProductById)
 
 export default router;
