@@ -56,54 +56,54 @@ const addOrUpdateRating = async (req, res) => {
 };
 
 //! Get All Ratings for a Product
-// const getProductRatings = async (req, res) => {
-//     try {
-//         const productId = Number(req.params.id); // or req.params.productId
-//         if (isNaN(productId)) {
-//             return res.status(400).json({ success: false, error: "Invalid productId" });
-//         }
+const getProductRatings = async (req, res) => {
+    try {
+        const productId = Number(req.params.id); // or req.params.productId
+        if (isNaN(productId)) {
+            return res.status(400).json({ success: false, error: "Invalid productId" });
+        }
 
-//         // Get all ratings for this product with user info
-//         const ratings = await prisma.productRating.findMany({
-//             where: { productId },
-//             orderBy: { createdAt: "desc" },
-//         });
+        // Get all ratings for this product with user info
+        const ratings = await prisma.productRating.findMany({
+            where: { productId },
+            orderBy: { createdAt: "desc" },
+        });
 
-//         // Calculate overall rating
-//         const agg = await prisma.productRating.aggregate({
-//             where: { productId },
-//             _avg: { rating: true },
-//         });
+        // Calculate overall rating
+        const agg = await prisma.productRating.aggregate({
+            where: { productId },
+            _avg: { rating: true },
+        });
 
-//         res.status(200).json({
-//             success: true,
-//             ratings,
-//             overall_rating: agg._avg.rating || 0,
-//         });
-//     } catch (error) {
-//         console.error(error);
-//         res.status(500).json({ success: false, error: error.message });
-//     }
-// };
+        res.status(200).json({
+            success: true,
+            ratings,
+            overall_rating: agg._avg.rating || 0,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
 
 //! Get Product Overall Rating
-// const getProductOverallRating = async (req, res) => {
-//     console.log('hello');
-//     try {
-//         const ratings = await prisma.productRating.findMany({
-//             orderBy: { createdAt: "desc" },
-//         });
+const getProductOverallRating = async (req, res) => {
+    console.log('hello');
+    try {
+        const ratings = await prisma.productRating.findMany({
+            orderBy: { createdAt: "desc" },
+        });
 
 
-//         res.status(200).json({
-//             success: true,
-//             ratings,
-//         });
-//     } catch (error) {
-//         console.error(error);
-//         res.status(500).json({ success: false, error: error.message });
-//     }
-// };
+        res.status(200).json({
+            success: true,
+            ratings,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
 
 //! Delete a Rating
 const deleteRating = async (req, res) => {
@@ -130,7 +130,7 @@ const deleteRating = async (req, res) => {
 
 export {
     addOrUpdateRating,
-    // getProductRatings,
-    // getProductOverallRating,
+    getProductRatings,
+    getProductOverallRating,
     deleteRating,
 };
