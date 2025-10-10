@@ -81,16 +81,6 @@ const getProductRatings = async (req, res) => {
         // Fetch all ratings for this product (with user info)
         const ratings = await prisma.productRating.findMany({
             where: { productId },
-            include: {
-                User: {
-                    select: {
-                        id: true,
-                        firstname: true,
-                        lastname: true,
-                        avatar: true,
-                    },
-                },
-            },
             orderBy: { createdAt: "desc" },
         });
 
@@ -102,7 +92,6 @@ const getProductRatings = async (req, res) => {
 
         const overallRating = agg?._avg?.rating ?? 0;
 
-        // Send response
         res.status(200).json({
             success: true,
             productId,
