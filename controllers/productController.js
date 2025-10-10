@@ -409,116 +409,164 @@ const getProductById = async (req, res) => {
                     select: {
                         id: true,
                         district_name: true,
-                    }
+                    },
                 },
                 Venue: {
                     select: {
                         venue_name: true,
-                    }
+                    },
                 },
                 product_image: {
                     select: {
                         id: true,
                         url: true,
-                    }
+                    },
                 },
                 category: {
                     select: {
                         id: true,
-                        category_name: true
-                    }
+                        category_name: true,
+                    },
                 },
+
                 //* 1. Party Palace 
                 partypalace: {
                     select: {
                         id: true,
                         partypalace_name: true,
                         price: true,
+                        offerPrice: true,
                         description: true,
-                    }
+                    },
                 },
+
                 //* 2. Multimedia 
                 multimedia: {
                     select: {
                         id: true,
                         multimedia_name: true,
                         price: true,
+                        offerPrice: true,
                         description: true,
-                    }
+                    },
                 },
+
                 //* 3. Musical 
                 musical: {
                     select: {
                         id: true,
                         instrument_name: true,
                         price: true,
+                        offerPrice: true,
                         description: true,
-                    }
+                    },
                 },
+
                 //! 4. Luxury 
                 luxury: {
                     select: {
                         id: true,
                         luxury_name: true,
                         price: true,
+                        offerPrice: true,
                         description: true,
-                    }
+                    },
                 },
+
                 //! 5. CateringTent 
                 cateringtent: {
                     select: {
                         id: true,
                         catering_name: true,
                         price: true,
+                        offerPrice: true,
                         description: true,
-                    }
+                    },
                 },
+
                 //! 6. Adventure 
                 adventure: {
                     select: {
                         id: true,
                         adventure_name: true,
                         price: true,
+                        offerPrice: true,
                         description: true,
-                    }
+                    },
                 },
+
                 //! 7. Entertainment 
                 entertainment: {
                     select: {
                         id: true,
                         entertainment_name: true,
                         price: true,
+                        offerPrice: true,
                         description: true,
-                    }
+                    },
                 },
+
                 //! 8. Beauty & Decoration 
                 beautydecor: {
                     select: {
                         id: true,
                         beauty_name: true,
                         price: true,
+                        offerPrice: true,
                         description: true,
-                    }
+                    },
                 },
-                //! 9. Luxury 
+
+                //! 9. Meeting 
                 meeting: {
                     select: {
                         id: true,
                         meeting_name: true,
                         price: true,
+                        offerPrice: true,
                         description: true,
-                    }
-                }
+                    },
+                },
             },
-        })
+        });
 
-        if (!product) return res.status(404).json({ error: `Products ${id} doesn't exist.` })
+        if (!product) {
+            return res.status(404).json({ error: `Product ${id} doesn't exist.` });
+        }
 
-        res.json({ success: true, product })
+        // ✅ Calculate discount percentage for each related item
+        const calculateDiscount = (price, offerPrice) => {
+            if (offerPrice && price && offerPrice < price) {
+                return Math.round(((price - offerPrice) / price) * 100);
+            }
+            return 0;
+        };
+
+        const addDiscounts = (items) =>
+            items?.map((item) => ({
+                ...item,
+                discountPercentage: calculateDiscount(item.price, item.offerPrice),
+            })) || [];
+
+        const productWithDiscounts = {
+            ...product,
+            multimedia: addDiscounts(product.multimedia),
+            entertainment: addDiscounts(product.entertainment),
+            musical: addDiscounts(product.musical),
+            partypalace: addDiscounts(product.partypalace),
+            beautydecor: addDiscounts(product.beautydecor),
+            adventure: addDiscounts(product.adventure),
+            luxury: addDiscounts(product.luxury),
+            cateringtent: addDiscounts(product.cateringtent),
+            meeting: addDiscounts(product.meeting),
+        };
+
+        res.json({ success: true, product: productWithDiscounts });
     } catch (error) {
-        res.status(500).json({ error: error.message })
+        console.error("Error fetching product by ID:", error);
+        res.status(500).json({ error: error.message });
     }
-}
+};
 
 //! Get Product Images By Id
 const getProductImagesById = async (req, res) => {
