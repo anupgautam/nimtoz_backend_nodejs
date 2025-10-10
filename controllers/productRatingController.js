@@ -13,8 +13,8 @@ const ratingSchema = z.object({
 const addOrUpdateRating = async (req, res) => {
     console.log('req.body', req.body);
     try {
-        const validatedData = ratingSchema.parse(req.body);
-        const { productId, rating, review, userId } = validatedData;
+        // const validatedData = ratingSchema.parse(req.body;
+        const { productId, rating, review, userId } = req.body;
 
         const productRating = await prisma.productRating.upsert({
             where: {
@@ -45,12 +45,12 @@ const addOrUpdateRating = async (req, res) => {
         });
 
     } catch (error) {
-        if (error instanceof z.ZodError) {
-            return res.status(400).json({
-                success: false,
-                errors: error.errors.map((e) => e.message),
-            });
-        }
+        // if (error instanceof z.ZodError) {
+        //     return res.status(400).json({
+        //         success: false,
+        //         errors: error.errors.map((e) => e.message),
+        //     });
+        // }
         res.status(500).json({ success: false, error: error.message });
     }
 };
