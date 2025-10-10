@@ -14,6 +14,7 @@ const addOrUpdateRating = async (req, res) => {
     try {
         const validatedData = ratingSchema.parse(req.body);
         const { productId, rating, review, userId } = validatedData;
+        console.log('req.body', req.body);
 
         // const productRating = await prisma.productRating.upsert({
         //     where: {
@@ -31,10 +32,10 @@ const addOrUpdateRating = async (req, res) => {
         //     _avg: { rating: true },
         // });
 
-        await prisma.product.update({
-            where: { id: productId },
-            data: { overall_rating: rating || 0 },
-        });
+        // await prisma.product.update({
+        //     where: { id: productId },
+        //     data: { overall_rating: rating || 0 },
+        // });
 
         res.status(200).json({
             success: true,
