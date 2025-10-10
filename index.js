@@ -24,7 +24,7 @@ import compression from 'compression'
 import { countCategory, getCategoryByProductId } from './controllers/categoriesController.js';
 import { getTopBookers } from './controllers/registerController.js';
 import { getBookingStats } from './controllers/bookingController.js';
-import { getBookingProducts, getBookingProductsById, getHomePageProducts, getProductImagesById } from './controllers/productController.js';
+import { getBookingProducts, getBookingProductsById, getHomePageProducts, getProductImagesById, updateProduct } from './controllers/productController.js';
 import { getStatBlogs } from './controllers/blogController.js';
 import { globalErrorHandler } from './middleware/globalErrorHandler.js';
 import { verifyOTP } from './controllers/verifyOTPController.js';
@@ -87,6 +87,7 @@ app.use('/homepageproducts', getHomePageProducts)
 app.use('/bookingstats', getBookingStats)
 app.use('/productimages/:id', getProductImagesById)
 app.use('/productcategoryid/:id', getCategoryByProductId)
+app.use('/product/:id', updateProduct)
 app.use('/stat-blogs', getStatBlogs)
 
 app.post("/product/rating", addOrUpdateRating);
