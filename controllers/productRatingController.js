@@ -41,6 +41,7 @@ const addOrUpdateRating = async (req, res) => {
             rating: productRating,
             overall_rating: updatedProduct.overall_rating,
         });
+
     } catch (error) {
         if (error instanceof z.ZodError) {
             return res.status(400).json({
