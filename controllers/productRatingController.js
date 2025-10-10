@@ -1,47 +1,48 @@
 import { prisma } from "../config/prisma.js";
 import { z } from "zod";
 
+// ✅ Validation schema
 const ratingSchema = z.object({
-    productId: z.preprocess((val) => Number(val), z.number()),
-    userId: z.preprocess((val) => Number(val), z.number()),
-    rating: z.preprocess((val) => Number(val), z.number().min(1).max(5)),
+    productId: z.number(),
+    userId: z.number(), // ✅ add this
+    rating: z.number().min(1).max(5),
     review: z.string().optional(),
 });
 
+//! Add or Update Product Rating
 const addOrUpdateRating = async (req, res) => {
     try {
-        const { productId, userId, rating, review } = ratingSchema.parse(req.body);
+        const validatedData = ratingSchema.parse(req.body);
+        const { productId, rating, review, userId } = validatedData;
 
-        if (isNaN(productId)) {
-            return res.status(400).json({ success: false, error: "Invalid product ID" });
-        }
-
-        // ✅ Upsert the rating
         const productRating = await prisma.productRating.upsert({
-            where: { productId: productId, userId: userId },
+            where: {
+                userId_productId: {
+                    userId,
+                    productId
+                }
+            },
             update: { rating, review },
             create: { userId, productId, rating, review },
         });
 
-        // ✅ Recalculate overall rating
-        const agg = await prisma.productRating.aggregate({
-            where: { productId },
-            _avg: { rating: true },
-        });
+        console.log('productRating', productRating);
 
-        console.log('aggagg', agg);
-
-        // // ✅ Update ONLY overall_rating
-        // const updatedProduct = await prisma.product.update({
-        //     where: { id: productId },
-        //     data: { overall_rating: agg._avg.rating || 0 }, // Only this field
+        // const agg = await prisma.productRating.aggregate({
+        //     where: { productId },
+        //     _avg: { rating: true },
         // });
 
-        return res.status(200).json({
+        // await prisma.product.update({
+        //     where: { id: productId },
+        //     data: { overall_rating: agg._avg.rating || 0 },
+        // });
+
+        res.status(200).json({
             success: true,
-            message: "Rating saved successfully",
+            message: "Rating saved successfully.",
             rating: productRating,
-            // overall_rating: updatedProduct.overall_rating,
+            // overall_rating: agg._avg.rating || 0,
         });
 
     } catch (error) {
@@ -51,16 +52,14 @@ const addOrUpdateRating = async (req, res) => {
                 errors: error.errors.map((e) => e.message),
             });
         }
-        console.error(error);
-        return res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: error.message });
     }
 };
-
 
 //! Get All Ratings for a Product
 const getProductRatings = async (req, res) => {
     try {
-        const productId = Number(req.params.id);
+        const productId = Number(req.params.id); // or req.params.productId
         if (isNaN(productId)) {
             return res.status(400).json({ success: false, error: "Invalid productId" });
         }
