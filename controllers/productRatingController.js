@@ -54,59 +54,59 @@ const addOrUpdateRating = async (req, res) => {
     }
 };
 
-export const getProductRatings = async (req, res) => {
+const getProductRatings = async (req, res) => {
     try {
-      // Try reading both params and query
-      const productId = Number(req.params.id || req.query.id);
-  
-      if (!productId || isNaN(productId)) {
-        return res.status(400).json({ success: false, error: "Invalid product ID" });
-      }
-  
-      // Check if product exists
-      const productExists = await prisma.product.findUnique({
-        where: { id: productId },
-      });
-  
-      if (!productExists) {
-        return res.status(404).json({ success: false, message: "Product not found" });
-      }
-  
-      // Fetch all ratings for this product
-      const ratings = await prisma.productRating.findMany({
-        where: { productId },
-        include: { User: true },
-        orderBy: { createdAt: "desc" },
-      });
-  
-      // Calculate average rating
-      const agg = await prisma.productRating.aggregate({
-        where: { productId },
-        _avg: { rating: true },
-      });
-  
-      const overallRating = agg?._avg?.rating ?? 0;
-  
-      // ✅ Update only the overall_rating field
-      await prisma.product.update({
-        where: { id: productId },
-        data: { overall_rating: overallRating },
-      });
-  
-      // Send response
-      res.status(200).json({
-        success: true,
-        productId,
-        overall_rating: overallRating,
-        total_ratings: ratings.length,
-        ratings,
-      });
+        // Try reading both params and query
+        const productId = Number(req.params.id || req.query.id);
+
+        if (!productId || isNaN(productId)) {
+            return res.status(400).json({ success: false, error: "Invalid product ID" });
+        }
+
+        // Check if product exists
+        const productExists = await prisma.product.findUnique({
+            where: { id: productId },
+        });
+
+        if (!productExists) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        // Fetch all ratings for this product
+        const ratings = await prisma.productRating.findMany({
+            where: { productId },
+            include: { User: true },
+            orderBy: { createdAt: "desc" },
+        });
+
+        // Calculate average rating
+        const agg = await prisma.productRating.aggregate({
+            where: { productId },
+            _avg: { rating: true },
+        });
+
+        const overallRating = agg?._avg?.rating ?? 0;
+
+        // ✅ Update only the overall_rating field
+        await prisma.product.update({
+            where: { id: productId },
+            data: { overall_rating: overallRating },
+        });
+
+        // Send response
+        res.status(200).json({
+            success: true,
+            productId,
+            overall_rating: overallRating,
+            total_ratings: ratings.length,
+            ratings,
+        });
     } catch (error) {
-      console.error("Error fetching product ratings:", error);
-      res.status(500).json({ success: false, error: error.message });
+        console.error("Error fetching product ratings:", error);
+        res.status(500).json({ success: false, error: error.message });
     }
-  };
-  
+};
+
 
 
 
