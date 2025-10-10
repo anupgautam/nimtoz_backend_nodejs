@@ -12,37 +12,35 @@ const ratingSchema = z.object({
 //! Add or Update Product Rating
 const addOrUpdateRating = async (req, res) => {
     try {
-        const { productId, rating, review, userId } = req.body;
-        console.log('req.body', req.body);
+        const validatedData = ratingSchema.parse(req.body);
+        const { productId, rating, review, userId } = validatedData;
 
-        // const productRating = await prisma.productRating.upsert({
-        //     where: {
-        //         userId_productId: {
-        //             userId,
-        //             productId
-        //         }
-        //     },
-        //     update: { rating, review },
-        //     create: { userId, productId, rating, review },
-        // });
+        const productRating = await prisma.productRating.upsert({
+            where: {
+                userId_productId: {  // ✅ match your @@unique([userId, productId])
+                    userId,
+                    productId
+                }
+            },
+            update: { rating, review },
+            create: { userId, productId, rating, review },
+        });
 
-        // console.log('productRating', productRating);
+        const agg = await prisma.productRating.aggregate({
+            where: { productId },
+            _avg: { rating: true },
+        });
 
-        // const agg = await prisma.productRating.aggregate({
-        //     where: { productId },
-        //     _avg: { rating: true },
-        // });
-
-        // await prisma.product.update({
-        //     where: { id: productId },
-        //     data: { overall_rating: agg._avg.rating || 0 },
-        // });
+        await prisma.product.update({
+            where: { id: productId },
+            data: { overall_rating: agg._avg.rating || 0 },
+        });
 
         res.status(200).json({
             success: true,
             message: "Rating saved successfully.",
-            // rating: productRating,
-            // overall_rating: agg._avg.rating || 0,
+            rating: productRating,
+            overall_rating: agg._avg.rating || 0,
         });
 
     } catch (error) {
