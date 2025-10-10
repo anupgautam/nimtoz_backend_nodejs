@@ -264,128 +264,140 @@ const getBookingProductsById = async (req, res) => {
 //! Get HomePage Products 
 const getHomePageProducts = async (req, res) => {
     try {
-      const { search = "", category = "", location: district = "" } = req.query;
-  
-      const whereClause = {
-        Venue: {
-          is: {
-            active: true,
-          },
-        },
-      };
-  
-      if (search) {
-        whereClause.title = {
-          contains: search,
-        };
-      }
-  
-      if (category) {
-        whereClause.category = {
-          is: {
-            category_name: category,
-          },
-        };
-      }
-  
-      if (district) {
-        whereClause.districtId = parseInt(district); // Ensure district is integer
-      }
-  
-      // Fetch the products
-      const products = await prisma.product.findMany({
-        where: Object.keys(whereClause).length ? whereClause : undefined,
-        include: {
-          product_image: true,
-  
-          District: {
-            select: {
-              district_name: true,
+        const { search = "", category = "", location: district = "" } = req.query;
+
+        const whereClause = {
+            Venue: {
+                is: {
+                    active: true,
+                },
             },
-          },
-          multimedia: {
-            select: { price: true, multimedia_name: true },
-            take: 1,
-            orderBy: { price: "asc" },
-          },
-          entertainment: {
-            select: { entertainment_name: true, price: true },
-            take: 1,
-            orderBy: { price: "asc" },
-          },
-          musical: {
-            select: { instrument_name: true, price: true },
-            take: 1,
-            orderBy: { price: "asc" },
-          },
-          cateringtent: {
-            select: { catering_name: true, price: true },
-            take: 1,
-            orderBy: { price: "asc" },
-          },
-          adventure: {
-            select: { adventure_name: true, price: true },
-            take: 1,
-            orderBy: { price: "asc" },
-          },
-          luxury: {
-            select: { luxury_name: true, price: true },
-            take: 1,
-            orderBy: { price: "asc" },
-          },
-          meeting: {
-            select: { meeting_name: true, price: true },
-            take: 1,
-            orderBy: { price: "asc" },
-          },
-          partypalace: {
-            select: { partypalace_name: true, price: true },
-            take: 1,
-            orderBy: { price: "asc" },
-          },
-          beautydecor: {
-            select: { beauty_name: true, price: true },
-            take: 1,
-            orderBy: { price: "asc" },
-          },
-        },
-        orderBy: {
-          updatedAt: "desc",
-        },
-      });
-  
-      // Calculate the minimum price per product
-      const productsWithMinPrice = products.map((product) => {
-        const minPrice = Math.min(
-          ...(product.multimedia.map((item) => item.price) || []),
-          ...(product.entertainment.map((item) => item.price) || []),
-          ...(product.musical.map((item) => item.price) || []),
-          ...(product.partypalace.map((item) => item.price) || []),
-          ...(product.beautydecor.map((item) => item.price) || []),
-          ...(product.adventure.map((item) => item.price) || []),
-          ...(product.luxury.map((item) => item.price) || []),
-          ...(product.cateringtent.map((item) => item.price) || []),
-          ...(product.meeting.map((item) => item.price) || [])
-        );
-  
-        return {
-          ...product,
-          minPrice: Number.isFinite(minPrice) ? minPrice : 0, // fallback to 0
         };
-      });
-  
-      res.json(productsWithMinPrice);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          errors: error.errors.map((e) => e.message),
+
+        if (search) {
+            whereClause.title = {
+                contains: search,
+                mode: "insensitive",
+            };
+        }
+
+        if (category) {
+            whereClause.category = {
+                is: {
+                    category_name: category,
+                },
+            };
+        }
+
+        if (district) {
+            whereClause.districtId = parseInt(district);
+        }
+
+        // Fetch all products with related data
+        const products = await prisma.product.findMany({
+            where: Object.keys(whereClause).length ? whereClause : undefined,
+            include: {
+                product_image: true,
+                District: { select: { district_name: true } },
+                multimedia: {
+                    select: { price: true, offerPrice: true, multimedia_name: true },
+                    orderBy: { price: "asc" },
+                },
+                entertainment: {
+                    select: { price: true, offerPrice: true, entertainment_name: true },
+                    orderBy: { price: "asc" },
+                },
+                musical: {
+                    select: { price: true, offerPrice: true, instrument_name: true },
+                    orderBy: { price: "asc" },
+                },
+                cateringtent: {
+                    select: { price: true, offerPrice: true, catering_name: true },
+                    orderBy: { price: "asc" },
+                },
+                adventure: {
+                    select: { price: true, offerPrice: true, adventure_name: true },
+                    orderBy: { price: "asc" },
+                },
+                luxury: {
+                    select: { price: true, offerPrice: true, luxury_name: true },
+                    orderBy: { price: "asc" },
+                },
+                meeting: {
+                    select: { price: true, offerPrice: true, meeting_name: true },
+                    orderBy: { price: "asc" },
+                },
+                partypalace: {
+                    select: { price: true, offerPrice: true, partypalace_name: true },
+                    orderBy: { price: "asc" },
+                },
+                beautydecor: {
+                    select: { price: true, offerPrice: true, beauty_name: true },
+                    orderBy: { price: "asc" },
+                },
+            },
+            orderBy: {
+                updatedAt: "desc",
+            },
         });
-      }
-      res.status(400).json({ error: error.message });
+
+        // Process prices and discount
+        const productsWithPriceAndDiscount = products.map((product) => {
+            // Collect all price sources
+            const allPrices = [
+                ...(product.multimedia || []),
+                ...(product.entertainment || []),
+                ...(product.musical || []),
+                ...(product.partypalace || []),
+                ...(product.beautydecor || []),
+                ...(product.adventure || []),
+                ...(product.luxury || []),
+                ...(product.cateringtent || []),
+                ...(product.meeting || []),
+            ];
+
+            // Compute minimum price
+            const minPrice = Math.min(
+                ...allPrices.map((item) => item.price).filter((p) => p != null),
+                Infinity
+            );
+
+            // Compute minimum offer price if available
+            const minOfferPrice = Math.min(
+                ...allPrices
+                    .map((item) => item.offerPrice)
+                    .filter((p) => p != null && p > 0),
+                Infinity
+            );
+
+            // Calculate discount percentage (based on min offer price)
+            let discountPercentage = 0;
+            if (Number.isFinite(minPrice) && Number.isFinite(minOfferPrice) && minOfferPrice < minPrice) {
+                discountPercentage = Math.round(((minPrice - minOfferPrice) / minPrice) * 100);
+            }
+
+            return {
+                ...product,
+                minPrice: Number.isFinite(minPrice) ? minPrice : 0,
+                minOfferPrice: Number.isFinite(minOfferPrice) ? minOfferPrice : null,
+                discountPercentage,
+            };
+        });
+
+        res.json(productsWithPriceAndDiscount);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({
+                success: false,
+                errors: error.errors.map((e) => e.message),
+            });
+        }
+
+        console.error("Error fetching homepage products:", error);
+        res.status(400).json({ error: error.message });
     }
-  };
-  
+};
+
 //! Get Product by Id
 const getProductById = async (req, res) => {
     const { id } = req.params;
