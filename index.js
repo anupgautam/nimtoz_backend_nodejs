@@ -16,6 +16,7 @@ import login from './routes/api/login.js'
 import refresh from './routes/api/refresh.js'
 import product from './routes/api/product.js'
 import booking from './routes/api/booking.js'
+import productRating from "./routes/api/productRatings.js";
 import eventType from './routes/api/eventType.js'
 import forgotPassword from './routes/api/forgotPassword.js'
 import resetPassword from './routes/api/resetPassword.js'
@@ -27,7 +28,7 @@ import { getBookingProducts, getBookingProductsById, getHomePageProducts, getPro
 import { getStatBlogs } from './controllers/blogController.js';
 import { globalErrorHandler } from './middleware/globalErrorHandler.js';
 import { verifyOTP } from './controllers/verifyOTPController.js';
-import ProductRating from "./routes/api/productRatings.js";
+
 
 const PORT = process.env.PORT || 1000;
 
