@@ -15,18 +15,18 @@ const addOrUpdateRating = async (req, res) => {
         const { productId, rating, review, userId } = req.body;
         console.log('req.body', req.body);
 
-        const productRating = await prisma.productRating.upsert({
-            where: {
-                userId_productId: {
-                    userId,
-                    productId
-                }
-            },
-            update: { rating, review },
-            create: { userId, productId, rating, review },
-        });
+        // const productRating = await prisma.productRating.upsert({
+        //     where: {
+        //         userId_productId: {
+        //             userId,
+        //             productId
+        //         }
+        //     },
+        //     update: { rating, review },
+        //     create: { userId, productId, rating, review },
+        // });
 
-        console.log('productRating', productRating);
+        // console.log('productRating', productRating);
 
         // const agg = await prisma.productRating.aggregate({
         //     where: { productId },
@@ -41,7 +41,7 @@ const addOrUpdateRating = async (req, res) => {
         res.status(200).json({
             success: true,
             message: "Rating saved successfully.",
-            rating: productRating,
+            // rating: productRating,
             // overall_rating: agg._avg.rating || 0,
         });
 
