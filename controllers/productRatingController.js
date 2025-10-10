@@ -16,23 +16,23 @@ const addOrUpdateRating = async (req, res) => {
             return res.status(400).json({ success: false, error: "Invalid product ID" });
         }
 
-        // Upsert rating
+        // ✅ Upsert the rating
         const productRating = await prisma.productRating.upsert({
             where: { userId_productId: { userId, productId } },
             update: { rating, review },
             create: { userId, productId, rating, review },
         });
 
-        // Recalculate overall rating
+        // ✅ Recalculate overall rating
         const agg = await prisma.productRating.aggregate({
             where: { productId },
             _avg: { rating: true },
         });
 
-        // Update only overall_rating
+        // ✅ Update ONLY overall_rating
         const updatedProduct = await prisma.product.update({
             where: { id: productId },
-            data: { overall_rating: agg._avg.rating || 0 },
+            data: { overall_rating: agg._avg.rating || 0 }, // Only this field
         });
 
         return res.status(200).json({
