@@ -57,31 +57,64 @@ const addOrUpdateRating = async (req, res) => {
 //! Get All Ratings for a Product
 const getProductRatings = async (req, res) => {
     try {
-        const productId = Number(req.params.id); // or req.params.productId
-        if (isNaN(productId)) {
-            return res.status(400).json({ success: false, error: "Invalid productId" });
+        const productId = Number(req.params.id);
+        if (!productId || isNaN(productId)) {
+            return res.status(400).json({
+                success: false,
+                error: "Invalid product ID",
+            });
         }
 
-        // Get all ratings for this product with user info
+        // Check if product exists
+        const productExists = await prisma.product.findUnique({
+            where: { id: productId },
+            select: { id: true },
+        });
+
+        if (!productExists) {
+            return res.status(404).json({
+                success: false,
+                message: `Product with ID ${productId} not found.`,
+            });
+        }
+
+        // ✅ Fetch ratings with optional user info
         const ratings = await prisma.productRating.findMany({
             where: { productId },
+            include: {
+                User: {
+                    select: {
+                        id: true,
+                        firstname: true,
+                        lastname: true,
+                        avatar: true,
+                    },
+                },
+            },
             orderBy: { createdAt: "desc" },
         });
 
-        // Calculate overall rating
+        // ✅ Aggregate average rating (safe even if no data)
         const agg = await prisma.productRating.aggregate({
             where: { productId },
             _avg: { rating: true },
         });
 
-        res.status(200).json({
+        const overallRating = agg?._avg?.rating ?? 0;
+
+        return res.status(200).json({
             success: true,
+            productId,
+            overall_rating: overallRating,
+            total_ratings: ratings.length,
             ratings,
-            overall_rating: agg._avg.rating || 0,
         });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, error: error.message });
+        console.error("Error fetching product ratings:", error);
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+        });
     }
 };
 
