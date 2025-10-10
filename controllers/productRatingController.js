@@ -1,13 +1,5 @@
-import { prisma } from "../config/prisma.js";
-import { z } from "zod";
+import { prisma } from "../config/prisma";
 
-// ✅ Validation schema
-const ratingSchema = z.object({
-    productId: z.number(),
-    userId: z.number(), // ✅ add this
-    rating: z.number().min(1).max(5),
-    review: z.string().optional(),
-});
 
 //! Add or Update Product Rating
 const addOrUpdateRating = async (req, res) => {
