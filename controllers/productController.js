@@ -832,7 +832,6 @@ const updateProduct = async (req, res) => {
             cateringtent: JSON.parse(req.body.cateringtent || "[]"),
         };
 
-        console.log("Parsed Data:", parsedData); // Debug parsed data
         // const validatedData = updateProductSchema.parse(parsedData);
         // console.log(validatedData)
 
