@@ -13,6 +13,7 @@ const ratingSchema = z.object({
 const addOrUpdateRating = async (req, res) => {
     try {
         const { productId, rating, review, userId } = req.body;
+        console.log('req.body', req.body);
 
         const productRating = await prisma.productRating.upsert({
             where: {
