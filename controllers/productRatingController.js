@@ -1,31 +1,30 @@
 import { prisma } from "../config/prisma.js";
 import { z } from "zod";
 
-// ✅ Validation schema
 const ratingSchema = z.object({
-    productId: z.number(),
-    userId: z.number(), // ✅ add this
-    rating: z.number().min(1).max(5),
+    productId: z.preprocess((val) => Number(val), z.number()), // ensure number
+    userId: z.preprocess((val) => Number(val), z.number()),    // ensure number
+    rating: z.preprocess((val) => Number(val), z.number().min(1).max(5)),
     review: z.string().optional(),
 });
 
 //! Add or Update Product Rating
-const addOrUpdateRating = async (req, res) => {
+export const addOrUpdateRating = async (req, res) => {
     try {
+        // Validate and parse data
         const validatedData = ratingSchema.parse(req.body);
-        const { productId, rating, review, userId } = validatedData;
+        const { productId, userId, rating, review } = validatedData;
 
+        // Upsert (add or update) the rating
         const productRating = await prisma.productRating.upsert({
             where: {
-                userId_productId: {  // ✅ match your @@unique([userId, productId])
-                    userId,
-                    productId
-                }
+                userId_productId: { userId, productId },
             },
-            update: { rating, review },
-            create: { userId, productId, rating, review },
+            update: { rating, review },   // update existing
+            create: { userId, productId, rating, review }, // create new
         });
 
+        // Recalculate overall product rating
         const agg = await prisma.productRating.aggregate({
             where: { productId },
             _avg: { rating: true },
@@ -36,7 +35,7 @@ const addOrUpdateRating = async (req, res) => {
             data: { overall_rating: agg._avg.rating || 0 },
         });
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Rating saved successfully.",
             rating: productRating,
@@ -50,14 +49,15 @@ const addOrUpdateRating = async (req, res) => {
                 errors: error.errors.map((e) => e.message),
             });
         }
-        res.status(500).json({ success: false, error: error.message });
+        console.error("Error adding/updating rating:", error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 };
 
 //! Get All Ratings for a Product
 const getProductRatings = async (req, res) => {
     try {
-        const productId = Number(req.params.id); 
+        const productId = Number(req.params.id);
         if (isNaN(productId)) {
             return res.status(400).json({ success: false, error: "Invalid productId" });
         }
