@@ -89,7 +89,7 @@ app.use('/productcategoryid/:id', getCategoryByProductId)
 app.use('/product/:id', updateProduct)
 app.use('/stat-blogs', getStatBlogs)
 
-app.use('/product/rating/', ProductRating);
+app.use('/product/rating/', productRating);
 
 app.get('/404', (req, res) => {
     res.sendStatus(404);
