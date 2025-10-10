@@ -61,6 +61,8 @@ app.use(express.json({ limit: '70mb' }))
 app.use(cookieParser())
 app.use(customLogger)
 
+app.use('/product/rating/', productRating);
+
 //! Routes
 app.use('/category', category)
 app.use('/count_category', countCategory)
@@ -88,8 +90,6 @@ app.use('/productimages/:id', getProductImagesById)
 app.use('/productcategoryid/:id', getCategoryByProductId)
 app.use('/product/:id', updateProduct)
 app.use('/stat-blogs', getStatBlogs)
-
-app.use('/product/rating/', productRating);
 
 app.get('/404', (req, res) => {
     res.sendStatus(404);
