@@ -2,29 +2,32 @@ import { prisma } from "../config/prisma.js";
 import { z } from "zod";
 
 const ratingSchema = z.object({
-    productId: z.preprocess((val) => Number(val), z.number()), // ensure number
-    userId: z.preprocess((val) => Number(val), z.number()),    // ensure number
+    productId: z.preprocess((val) => Number(val), z.number()),
+    userId: z.preprocess((val) => Number(val), z.number()),
     rating: z.preprocess((val) => Number(val), z.number().min(1).max(5)),
     review: z.string().optional(),
 });
 
 //! Add or Update Product Rating
-const addOrUpdateRating = async (req, res) => {
+export const addOrUpdateRating = async (req, res) => {
     try {
         // Validate request body
         const validatedData = ratingSchema.parse(req.body);
         const { productId, userId, rating, review } = validatedData;
 
-        // Check if productId is valid
-        if (isNaN(productId)) {
-            return res.status(400).json({ success: false, error: "Invalid product ID" });
+        // Check if product exists
+        const product = await prisma.product.findUnique({
+            where: { id: productId },
+            select: { id: true }, // Only select id, we don't need other fields
+        });
+
+        if (!product) {
+            return res.status(404).json({ success: false, error: "Product not found" });
         }
 
         // Upsert rating (add new or update existing)
         const productRating = await prisma.productRating.upsert({
-            where: {
-                userId_productId: { userId, productId },
-            },
+            where: { userId_productId: { userId, productId } },
             update: { rating, review },   // update existing rating/review
             create: { userId, productId, rating, review }, // create new rating
         });
@@ -35,8 +38,8 @@ const addOrUpdateRating = async (req, res) => {
             _avg: { rating: true },
         });
 
-        // Update only the overall_rating field in Product
-        await prisma.product.update({
+        // Update only overall_rating field
+        const updatedProduct = await prisma.product.update({
             where: { id: productId },
             data: { overall_rating: agg._avg.rating || 0 },
         });
@@ -45,7 +48,7 @@ const addOrUpdateRating = async (req, res) => {
             success: true,
             message: "Rating saved successfully.",
             rating: productRating,
-            overall_rating: agg._avg.rating || 0,
+            overall_rating: updatedProduct.overall_rating,
         });
 
     } catch (error) {
