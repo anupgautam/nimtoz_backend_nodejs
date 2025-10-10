@@ -87,11 +87,11 @@ const getProductRatings = async (req, res) => {
 
         const overallRating = agg?._avg?.rating ?? 0;
 
-        // ✅ Update only the overall_rating field
-        await prisma.product.update({
-            where: { id: productId },
-            data: { overall_rating: overallRating },
-        });
+        // // ✅ Update only the overall_rating field
+        // await prisma.product.update({
+        //     where: { id: productId },
+        //     data: { overall_rating: overallRating },
+        // });
 
         // Send response
         res.status(200).json({
