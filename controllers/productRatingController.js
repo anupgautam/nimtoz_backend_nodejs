@@ -8,7 +8,7 @@ const ratingSchema = z.object({
     review: z.string().optional(),
 });
 
-export const addOrUpdateRating = async (req, res) => {
+const addOrUpdateRating = async (req, res) => {
     try {
         const validatedData = ratingSchema.parse(req.body);
         const { productId, userId, rating, review } = validatedData;
