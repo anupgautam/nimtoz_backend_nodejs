@@ -31,17 +31,17 @@ const addOrUpdateRating = async (req, res) => {
 
         console.log('aggagg', agg);
 
-        // ✅ Update ONLY overall_rating
-        const updatedProduct = await prisma.product.update({
-            where: { id: productId },
-            data: { overall_rating: agg._avg.rating || 0 }, // Only this field
-        });
+        // // ✅ Update ONLY overall_rating
+        // const updatedProduct = await prisma.product.update({
+        //     where: { id: productId },
+        //     data: { overall_rating: agg._avg.rating || 0 }, // Only this field
+        // });
 
         return res.status(200).json({
             success: true,
             message: "Rating saved successfully",
             rating: productRating,
-            overall_rating: updatedProduct.overall_rating,
+            // overall_rating: updatedProduct.overall_rating,
         });
 
     } catch (error) {
