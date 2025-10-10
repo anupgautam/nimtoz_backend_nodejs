@@ -29,7 +29,7 @@ import { getStatBlogs } from './controllers/blogController.js';
 import { globalErrorHandler } from './middleware/globalErrorHandler.js';
 import { verifyOTP } from './controllers/verifyOTPController.js';
 import { authenticateToken, authorizeRole } from './middleware/authentication.js';
-import { addOrUpdateRating, deleteRating, getProductOverallRating, getProductRatings } from './controllers/productRatingController.js';
+import { addOrUpdateRating, deleteRating } from './controllers/productRatingController.js';
 
 const PORT = process.env.PORT || 1000;
 
@@ -91,8 +91,8 @@ app.use('/product/:id', updateProduct)
 app.use('/stat-blogs', getStatBlogs)
 
 app.post("/product/rating/ratings/", addOrUpdateRating);
-app.get("/product/rating/:id", getProductRatings);
-app.get("/product/rating/overall/", getProductOverallRating);
+// app.get("/product/rating/:id", getProductRatings);
+// app.get("/product/rating/overall/", getProductOverallRating);
 app.delete("/product/rating:id", deleteRating);
 
 app.get('/404', (req, res) => {
