@@ -621,7 +621,7 @@ const createProduct = async (req, res) => {
             adventure: typeof req.body.adventure === 'string' ? JSON.parse(req.body.adventure) : req.body.adventure,
             partypalace: typeof req.body.partypalace === 'string' ? JSON.parse(req.body.partypalace) : req.body.partypalace,
             cateringtent: typeof req.body.cateringtent === 'string' ? JSON.parse(req.body.cateringtent) : req.body.cateringtent,
-            is_active: req.body.is_active === true || req.body.is_active === "true" ? true : false
+            is_active: ["true", true].includes(req.body.is_active),
 
         };
 
@@ -636,6 +636,7 @@ const createProduct = async (req, res) => {
                 category_id: parseInt(parsedData.category, 10),
                 districtId: parseInt(parsedData.location, 10),
                 businessId: parseInt(parsedData.business, 10),
+                is_active: parsedData.is_active,
 
                 product_image: {
                     create: productImages
