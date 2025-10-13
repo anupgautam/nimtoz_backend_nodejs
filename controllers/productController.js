@@ -265,11 +265,12 @@ const getHomePageProducts = async (req, res) => {
     try {
         const { search = "", category = "", location: district = "" } = req.query
 
+        // Build dynamic where clause
         const whereClause = {
-            is_active: true,
+            is_active: true, // correct field from Product
             Venue: {
                 is: {
-                    active: true,
+                    active: true, // correct field from Venue model
                 },
             },
         }
@@ -290,12 +291,11 @@ const getHomePageProducts = async (req, res) => {
         }
 
         if (district) {
-            whereClause.districtId = Number.parseInt(district)
+            whereClause.districtId = Number(district)
         }
 
-        // Fetch all products with related data
         const products = await prisma.product.findMany({
-            where: Object.keys(whereClause).length ? whereClause : undefined,
+            where: whereClause,
             include: {
                 product_image: true,
                 District: { select: { district_name: true } },
@@ -341,9 +341,8 @@ const getHomePageProducts = async (req, res) => {
             },
         })
 
-        // Process prices and discount
+        // Calculate min price and discount
         const productsWithPriceAndDiscount = products.map((product) => {
-            // Collect all price sources
             const allPrices = [
                 ...(product.multimedia || []),
                 ...(product.entertainment || []),
@@ -356,19 +355,16 @@ const getHomePageProducts = async (req, res) => {
                 ...(product.meeting || []),
             ]
 
-            // Compute minimum price
             const minPrice = Math.min(
                 ...allPrices.map((item) => item.price).filter((p) => p != null),
-                Number.POSITIVE_INFINITY,
+                Number.POSITIVE_INFINITY
             )
 
-            // Compute minimum offer price if available
             const minOfferPrice = Math.min(
                 ...allPrices.map((item) => item.offerPrice).filter((p) => p != null && p > 0),
-                Number.POSITIVE_INFINITY,
+                Number.POSITIVE_INFINITY
             )
 
-            // Calculate discount percentage (based on min offer price)
             let discountPercentage = 0
             if (Number.isFinite(minPrice) && Number.isFinite(minOfferPrice) && minOfferPrice < minPrice) {
                 discountPercentage = Math.round(((minPrice - minOfferPrice) / minPrice) * 100)
