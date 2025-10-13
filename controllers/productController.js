@@ -602,7 +602,6 @@ const deleteProductById = async (req, res) => {
 
 //! Create new Product 
 const createProduct = async (req, res) => {
-    console.log('req.body', req.body);
 
     // const productImages = req.files ? req.files.map(file => ({ url: file.path })) : [];
     const productImages = req.files ? req.files.map(file => ({ url: file.path.replace("\\", "/") })) : [];
@@ -807,7 +806,7 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
     const { id } = req.params;
 
-    const uploadedFiles = req.files ? req.files.map(file => ({ url: file.path })) : [];
+    const uploadedFiles = req.files ? req.files.map(file => ({ url: file.path.replace("\\", "/") })) : [];
     const existingImages = req.body.product_image
         ? Array.isArray(req.body.product_image)
             ? req.body.product_image
@@ -818,63 +817,58 @@ const updateProduct = async (req, res) => {
     try {
         const parsedData = {
             ...req.body,
-            multimedia: JSON.parse(req.body.multimedia || "[]"),
-            musical: JSON.parse(req.body.musical || "[]"),
-            luxury: JSON.parse(req.body.luxury || "[]"),
-            entertainment: JSON.parse(req.body.entertainment || "[]"),
-            meeting: JSON.parse(req.body.meeting || "[]"),
-            beautydecor: JSON.parse(req.body.beautydecor || "[]"),
-            adventure: JSON.parse(req.body.adventure || "[]"),
-            partypalace: JSON.parse(req.body.partypalace || "[]"),
-            cateringtent: JSON.parse(req.body.cateringtent || "[]"),
+            multimedia: typeof req.body.multimedia === 'string' ? JSON.parse(req.body.multimedia) : req.body.multimedia || [],
+            musical: typeof req.body.musical === 'string' ? JSON.parse(req.body.musical) : req.body.musical || [],
+            luxury: typeof req.body.luxury === 'string' ? JSON.parse(req.body.luxury) : req.body.luxury || [],
+            entertainment: typeof req.body.entertainment === 'string' ? JSON.parse(req.body.entertainment) : req.body.entertainment || [],
+            meeting: typeof req.body.meeting === 'string' ? JSON.parse(req.body.meeting) : req.body.meeting || [],
+            beautydecor: typeof req.body.beautydecor === 'string' ? JSON.parse(req.body.beautydecor) : req.body.beautydecor || [],
+            adventure: typeof req.body.adventure === 'string' ? JSON.parse(req.body.adventure) : req.body.adventure || [],
+            partypalace: typeof req.body.partypalace === 'string' ? JSON.parse(req.body.partypalace) : req.body.partypalace || [],
+            cateringtent: typeof req.body.cateringtent === 'string' ? JSON.parse(req.body.cateringtent) : req.body.cateringtent || [],
+            // ✅ convert is_active properly
+            is_active: ["true", true].includes(req.body.is_active),
         };
 
-        // const validatedData = updateProductSchema.parse(parsedData);
-        // console.log(validatedData)
-
+        // Delete existing related records
         await prisma.productImage.deleteMany({ where: { productId: Number(id) } });
+        await prisma.Multimedia.deleteMany({ where: { productId: Number(id) } });
+        await prisma.Musical.deleteMany({ where: { productId: Number(id) } });
+        await prisma.Luxury.deleteMany({ where: { productId: Number(id) } });
+        await prisma.Entertainment.deleteMany({ where: { productId: Number(id) } });
+        await prisma.Meeting.deleteMany({ where: { productId: Number(id) } });
+        await prisma.BeautyDecor.deleteMany({ where: { productId: Number(id) } });
+        await prisma.Adventure.deleteMany({ where: { productId: Number(id) } });
+        await prisma.PartyPalace.deleteMany({ where: { productId: Number(id) } });
+        await prisma.CateringTent.deleteMany({ where: { productId: Number(id) } });
 
-        await prisma.multimedia.deleteMany({ where: { productId: Number(id) } });
-        await prisma.musical.deleteMany({ where: { productId: Number(id) } });
-        await prisma.luxury.deleteMany({ where: { productId: Number(id) } });
-        await prisma.entertainment.deleteMany({ where: { productId: Number(id) } });
-        await prisma.meeting.deleteMany({ where: { productId: Number(id) } });
-        await prisma.beautyDecor.deleteMany({ where: { productId: Number(id) } });
-        await prisma.adventure.deleteMany({ where: { productId: Number(id) } });
-        await prisma.partyPalace.deleteMany({ where: { productId: Number(id) } });
-        await prisma.cateringTent.deleteMany({ where: { productId: Number(id) } });
-
-        // Construct the new data for each provided category
+        // Re-create product images
         if (productImages.length > 0) {
             await prisma.productImage.createMany({
-                data: productImages.map(img => ({
-                    ...img,
-                    productId: Number(id)
-                }))
+                data: productImages.map(img => ({ ...img, productId: Number(id) })),
             });
         }
 
+        // Helper to insert category data
         const insertCategoryData = async (categoryData, modelName) => {
             if (categoryData && categoryData.length > 0) {
                 await prisma[modelName].createMany({
-                    data: categoryData.map(item => ({
-                        ...item,
-                        productId: Number(id)
-                    }))
+                    data: categoryData.map(item => ({ ...item, productId: Number(id) })),
                 });
             }
         };
 
-        await insertCategoryData(parsedData.multimedia, 'multimedia');
-        await insertCategoryData(parsedData.musical, 'musical');
-        await insertCategoryData(parsedData.luxury, 'luxury');
-        await insertCategoryData(parsedData.entertainment, 'entertainment');
-        await insertCategoryData(parsedData.meeting, 'meeting');
-        await insertCategoryData(parsedData.beautydecor, 'beautyDecor');
-        await insertCategoryData(parsedData.adventure, 'adventure');
-        await insertCategoryData(parsedData.partypalace, 'partyPalace');
-        await insertCategoryData(parsedData.cateringtent, 'cateringTent');
+        await insertCategoryData(parsedData.multimedia, 'Multimedia');
+        await insertCategoryData(parsedData.musical, 'Musical');
+        await insertCategoryData(parsedData.luxury, 'Luxury');
+        await insertCategoryData(parsedData.entertainment, 'Entertainment');
+        await insertCategoryData(parsedData.meeting, 'Meeting');
+        await insertCategoryData(parsedData.beautydecor, 'BeautyDecor');
+        await insertCategoryData(parsedData.adventure, 'Adventure');
+        await insertCategoryData(parsedData.partypalace, 'PartyPalace');
+        await insertCategoryData(parsedData.cateringtent, 'CateringTent');
 
+        // Update main product
         const data = {
             title: parsedData.title,
             description: parsedData.description,
@@ -886,9 +880,9 @@ const updateProduct = async (req, res) => {
             is_active: parsedData.is_active,
         };
 
-        const product = await prisma.product.update({
+        await prisma.product.update({
             where: { id: Number(id) },
-            data
+            data,
         });
 
         res.status(200).json({ success: true, message: "Product Updated" });
@@ -902,6 +896,7 @@ const updateProduct = async (req, res) => {
         res.status(400).json({ error: error.message });
     }
 };
+
 
 export {
     getAllProducts,
