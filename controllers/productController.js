@@ -272,7 +272,7 @@ const getHomePageProducts = async (req, res) => {
                     active: true,
                 },
             },
-        };
+        }
 
         if (search) {
             whereClause.title = {
