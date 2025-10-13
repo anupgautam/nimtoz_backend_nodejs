@@ -602,6 +602,7 @@ const deleteProductById = async (req, res) => {
 
 //! Create new Product 
 const createProduct = async (req, res) => {
+    console.log('req.body', req.body);
 
     // const productImages = req.files ? req.files.map(file => ({ url: file.path })) : [];
     const productImages = req.files ? req.files.map(file => ({ url: file.path.replace("\\", "/") })) : [];
