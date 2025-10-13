@@ -17,7 +17,7 @@ const addOrUpdateRating = async (req, res) => {
 
         const productRating = await prisma.productRating.upsert({
             where: {
-                userId_productId: {  // ✅ match your @@unique([userId, productId])
+                userId_productId: {  
                     userId,
                     productId
                 }

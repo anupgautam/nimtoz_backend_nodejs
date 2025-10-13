@@ -261,16 +261,15 @@ const getBookingProductsById = async (req, res) => {
 }
 
 //! Get HomePage Products 
-export const getHomePageProducts = async (req, res) => {
+const getHomePageProducts = async (req, res) => {
     try {
-        const { search = "", category = "", location: district = "" } = req.query;
+        const { search = "", category = "", location: district = "" } = req.query
 
-        // Build the where clause with proper filters
         const whereClause = {
             is_active: true,
             Venue: {
                 is: {
-                    active: true, // ✅ Only products whose Venue is active
+                    active: true,
                 },
             },
         };
@@ -279,7 +278,7 @@ export const getHomePageProducts = async (req, res) => {
             whereClause.title = {
                 contains: search,
                 mode: "insensitive",
-            };
+            }
         }
 
         if (category) {
@@ -287,11 +286,11 @@ export const getHomePageProducts = async (req, res) => {
                 is: {
                     category_name: category,
                 },
-            };
+            }
         }
 
         if (district) {
-            whereClause.districtId = Number.parseInt(district);
+            whereClause.districtId = Number.parseInt(district)
         }
 
         // Fetch all products with related data
@@ -340,10 +339,11 @@ export const getHomePageProducts = async (req, res) => {
             orderBy: {
                 updatedAt: "desc",
             },
-        });
+        })
 
         // Process prices and discount
         const productsWithPriceAndDiscount = products.map((product) => {
+            // Collect all price sources
             const allPrices = [
                 ...(product.multimedia || []),
                 ...(product.entertainment || []),
@@ -354,29 +354,24 @@ export const getHomePageProducts = async (req, res) => {
                 ...(product.luxury || []),
                 ...(product.cateringtent || []),
                 ...(product.meeting || []),
-            ];
+            ]
 
+            // Compute minimum price
             const minPrice = Math.min(
                 ...allPrices.map((item) => item.price).filter((p) => p != null),
-                Number.POSITIVE_INFINITY
-            );
+                Number.POSITIVE_INFINITY,
+            )
 
+            // Compute minimum offer price if available
             const minOfferPrice = Math.min(
-                ...allPrices
-                    .map((item) => item.offerPrice)
-                    .filter((p) => p != null && p > 0),
-                Number.POSITIVE_INFINITY
-            );
+                ...allPrices.map((item) => item.offerPrice).filter((p) => p != null && p > 0),
+                Number.POSITIVE_INFINITY,
+            )
 
-            let discountPercentage = 0;
-            if (
-                Number.isFinite(minPrice) &&
-                Number.isFinite(minOfferPrice) &&
-                minOfferPrice < minPrice
-            ) {
-                discountPercentage = Math.round(
-                    ((minPrice - minOfferPrice) / minPrice) * 100
-                );
+            // Calculate discount percentage (based on min offer price)
+            let discountPercentage = 0
+            if (Number.isFinite(minPrice) && Number.isFinite(minOfferPrice) && minOfferPrice < minPrice) {
+                discountPercentage = Math.round(((minPrice - minOfferPrice) / minPrice) * 100)
             }
 
             return {
@@ -384,22 +379,22 @@ export const getHomePageProducts = async (req, res) => {
                 minPrice: Number.isFinite(minPrice) ? minPrice : 0,
                 minOfferPrice: Number.isFinite(minOfferPrice) ? minOfferPrice : null,
                 discountPercentage,
-            };
-        });
+            }
+        })
 
-        res.json(productsWithPriceAndDiscount);
+        res.json(productsWithPriceAndDiscount)
     } catch (error) {
         if (error instanceof z.ZodError) {
             return res.status(400).json({
                 success: false,
                 errors: error.errors.map((e) => e.message),
-            });
+            })
         }
 
-        console.error("Error fetching homepage products:", error);
-        res.status(400).json({ error: error.message });
+        console.error("Error fetching homepage products:", error)
+        res.status(400).json({ error: error.message })
     }
-};
+}
 
 //! Get Product by Id
 const getProductById = async (req, res) => {
