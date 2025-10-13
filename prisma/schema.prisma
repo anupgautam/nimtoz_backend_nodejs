@@ -85,6 +85,7 @@ model Product {
   description       String
   address           String
   short_description String?
+  is_active         Boolean @default(true)
 
   overall_rating Float   @default(0.0) // ⭐ Average rating field
 
