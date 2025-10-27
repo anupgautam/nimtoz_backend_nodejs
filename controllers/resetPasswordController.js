@@ -1,54 +1,56 @@
+// controllers/authController.js
 import { resetPasswordSchema } from "../utils/validationSchema.js";
-import pkg from 'bcryptjs';
-const { hashSync } = pkg;
-import { z } from 'zod'
-
-import { prisma } from '../config/prisma.js'
+import bcrypt from "bcryptjs"; // modern import
+import { z } from "zod";
+import db from "../config/prisma.js"; 
 
 const resetPassword = async (req, res) => {
-
     try {
         const validatedData = resetPasswordSchema.parse(req.body);
-
         const { token, password } = validatedData;
 
-        const user = await prisma.user.findFirst({
-            where: {
-                resetPasswordToken: token,
-                resetPasswordTokenExpiry: {
-                    gt: new Date(),
-                }
-            }
-        })
+        // Find user with valid token and non-expired
+        const [users] = await db.execute(
+            `SELECT id FROM User 
+       WHERE resetPasswordToken = ? 
+         AND resetPasswordTokenExpiry > NOW()`,
+            [token]
+        );
 
-        if (!user) {
-            return res.status(400).json({ success: false, message: "Invalid or expired token" })
+        if (users.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid or expired token",
+            });
         }
 
-        const hashedPassword = hashSync(password, 10);
+        const user = users[0];
+        const hashedPassword = bcrypt.hashSync(password, 10);
 
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                password: hashedPassword,
-                resetPasswordToken: null,
-                resetPasswordTokenExpiry: null,
-            }
-        })
+        // Update password and clear token
+        await db.execute(
+            `UPDATE User 
+       SET password = ?, 
+           resetPasswordToken = NULL, 
+           resetPasswordTokenExpiry = NULL 
+       WHERE id = ?`,
+            [hashedPassword, user.id]
+        );
 
-        return res.status(200).json({ success: true, message: "Password reset successful" })
-
+        return res.status(200).json({
+            success: true,
+            message: "Password reset successful",
+        });
     } catch (error) {
         if (error instanceof z.ZodError) {
             return res.status(400).json({
                 success: false,
-                errors: error.errors.map((e) => e.message)
+                errors: error.errors.map((e) => e.message),
             });
         }
-        res.status(400).json({ error: error.message });
+        console.error("resetPassword error:", error);
+        res.status(400).json({ success: false, error: error.message });
     }
-}
+};
 
-export {
-    resetPassword
-}
+export { resetPassword };

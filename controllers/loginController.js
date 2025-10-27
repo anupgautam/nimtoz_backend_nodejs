@@ -1,10 +1,9 @@
-import bcrypt from 'bcryptjs'
+// controllers/authController.js
+import bcrypt from "bcryptjs";
 import { generateAccesstoken, generateRefreshToken } from "../auth/generateTokens.js";
-import { loginSchema } from '../utils/validationSchema.js';
-import { z } from 'zod'
-
-import { prisma } from '../config/prisma.js'
-
+import { loginSchema } from "../utils/validationSchema.js";
+import { z } from "zod";
+import db from "../config/prisma.js";
 
 //! Login User
 const loginUser = async (req, res) => {
@@ -12,38 +11,56 @@ const loginUser = async (req, res) => {
         // Validate input with zod
         const { phone_number, password } = loginSchema.parse(req.body);
 
-        // Build where clause dynamically
-        let where = {};
-        if (phone_number) {
-            where.phone_number = phone_number;
-        } else {
-            return res.status(400).json({ message: "Email or phone number is required" });
+        // Validate required field
+        if (!phone_number) {
+            return res.status(400).json({ success: false, message: "Phone number is required" });
         }
 
-        // Find user
-        const user = await prisma.user.findUnique({ where });
+        // Find user by phone_number
+        const [rows] = await db.execute(
+            `SELECT id, firstname, lastname, email, phone_number, password, role, avatar 
+       FROM User 
+       WHERE phone_number = ?`,
+            [phone_number]
+        );
 
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: "User not found" });
         }
+
+        const user = rows[0];
 
         // Compare password
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) {
-            return res.status(401).json({ message: "Invalid credentials" });
+            return res.status(401).json({ success: false, message: "Invalid credentials" });
         }
 
-        // Generate tokens
-        const accessToken = generateAccesstoken(user);
-        const refreshToken = generateRefreshToken(user);
+        // Remove password from user object
+        const { password: _, ...userWithoutPassword } = user;
 
-        res.json({ success: true, accessToken, refreshToken, user });
+        // Generate tokens
+        const accessToken = generateAccesstoken(userWithoutPassword);
+        const refreshToken = generateRefreshToken(userWithoutPassword);
+
+        res.json({
+            success: true,
+            accessToken,
+            refreshToken,
+            user: userWithoutPassword,
+        });
     } catch (error) {
-        console.error(error);
+        console.error("loginUser error:", error);
+
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({
+                success: false,
+                errors: error.errors.map((e) => e.message),
+            });
+        }
+
         res.status(400).json({ success: false, error: error.message });
     }
 };
 
-export {
-    loginUser
-}
+export { loginUser };

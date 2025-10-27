@@ -1,10 +1,8 @@
-import nodemailer from 'nodemailer'
+import nodemailer from "nodemailer";
 import { createBookingSchema } from "../utils/validationSchema.js";
-import { addMonths, startOfMonth, endOfMonth, format } from 'date-fns';
-
-import { z } from 'zod'
-
-import { prisma } from '../config/prisma.js'
+import { addMonths, startOfMonth, endOfMonth, format } from "date-fns";
+import { z } from "zod";
+import db from "../config/prisma.js"; 
 
 const categoryMap = {
     PartyPalace: "PartyPalace",
@@ -18,59 +16,45 @@ const categoryMap = {
     Multimedia: "Multimedia",
 };
 
-
-
 const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
+    host: "smtp.gmail.com",
     port: 587,
     secure: false,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
     },
-})
+});
 
 function combineDateAndTime(dateString, timeString) {
     if (!timeString) return null;
-
-    const [hours, minutes] = timeString.split(':').map(Number);
+    const [hours, minutes] = timeString.split(":").map(Number);
     const date = new Date(dateString);
-
-    date.setHours(hours);
-    date.setMinutes(minutes);
-    date.setSeconds(0);
-    date.setMilliseconds(0);
-
+    date.setHours(hours, minutes, 0, 0);
     return date;
 }
 
+//! Dashboard Stats: Approved vs Pending per month
 async function getDashboardBookingStats() {
     const currentDate = new Date();
     const monthsArray = [];
 
-    // Loop through the next 12 months
     for (let i = 0; i < 12; i++) {
         const currentMonth = addMonths(currentDate, i);
         const monthStart = startOfMonth(currentMonth);
         const monthEnd = endOfMonth(currentMonth);
 
-        // Fetch events from the database for the current month
-        const eventsInMonth = await prisma.event.findMany({
-            where: {
-                start_date: {
-                    gte: monthStart,
-                    lte: monthEnd,
-                },
-            },
-        });
+        const [events] = await db.execute(
+            `SELECT is_approved, is_rejected FROM Event 
+       WHERE start_date >= ? AND start_date <= ?`,
+            [monthStart, monthEnd]
+        );
 
-        // Count approved and not approved (not approved = !is_approved && !is_rejected)
-        const approvedCount = eventsInMonth.filter(event => event.is_approved).length;
-        const notApprovedCount = eventsInMonth.filter(event => !event.is_approved && !event.is_rejected).length;
+        const approvedCount = events.filter((e) => e.is_approved).length;
+        const notApprovedCount = events.filter((e) => !e.is_approved && !e.is_rejected).length;
 
-        // Push the data into the array
         monthsArray.push({
-            month: format(currentMonth, 'MMM'), // e.g., "Oct" for October
+            month: format(currentMonth, "MMM"),
             approved: approvedCount,
             notApproved: notApprovedCount,
         });
@@ -79,521 +63,387 @@ async function getDashboardBookingStats() {
     return monthsArray;
 }
 
-//! Get All Bookings
+//! Get All Bookings (with search & pagination)
 const getAllBookings = async (req, res) => {
     try {
         const { search, page = 1, limit = 10 } = req.query;
-
-        const where = search
-            ? {
-                OR: [
-                    { category_name: { contains: search.toLowerCase() } },
-                ]
-            }
-            : {};
-
-        const skip = (page - 1) * limit;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
         const take = parseInt(limit);
 
-        // Fetch the data with search, pagination, and ordering
-        const bookings = await prisma.event.findMany({
-            include: {
-                User: true,
-                Product: true,
-                PartyPalace: true,
-                CateringTent: true,
-                Adventure: true,
-                BeautyDecor: true,
-                Meeting: true,
-                Entertainment: true,
-                Luxury: true,
-                Musical: true,
-                Multimedia: true
-            },
-            where,
-            orderBy: { updatedAt: 'desc' },
-            skip,
-            take,
+        let whereClause = "";
+        let params = [];
+
+        if (search) {
+            const searchTerm = `%${search.toLowerCase()}%`;
+            whereClause = `WHERE LOWER(c.category_name) LIKE ?`;
+            params.push(searchTerm);
+        }
+
+        const countQuery = `
+      SELECT COUNT(*) as total
+      FROM Event e
+      JOIN Product p ON e.productId = p.id
+      JOIN Category c ON p.category_id = c.id
+      ${whereClause}
+    `;
+
+        const [countResult] = await db.execute(countQuery, params);
+        const totalCount = countResult[0].total;
+
+        const bookingsQuery = `
+      SELECT 
+        e.*,
+        u.id as user_id, u.firstname, u.lastname, u.email as user_email,
+        p.title as product_title, p.address,
+        c.category_name,
+        pp.id as pp_id, pp.partypalace_name, pp.price as pp_price,
+        ct.id as ct_id, ct.catering_name, ct.price as ct_price,
+        adv.id as adv_id, adv.adventure_name, adv.price as adv_price,
+        bd.id as bd_id, bd.beauty_name, bd.price as bd_price,
+        m.id as m_id, m.meeting_name, m.price as m_price,
+        ent.id as ent_id, ent.entertainment_name, ent.price as ent_price,
+        lux.id as lux_id, lux.luxury_name, lux.price as lux_price,
+        mus.id as mus_id, mus.instrument_name, mus.price as mus_price,
+        mm.id as mm_id, mm.multimedia_name, mm.price as mm_price
+      FROM Event e
+      JOIN User u ON e.userId = u.id
+      JOIN Product p ON e.productId = p.id
+      JOIN Category c ON p.category_id = c.id
+      LEFT JOIN EventPartyPalace epp ON e.id = epp.eventId
+      LEFT JOIN PartyPalace pp ON epp.partyPalaceId = pp.id
+      LEFT JOIN EventCateringTent ect ON e.id = ect.eventId
+      LEFT JOIN CateringTent ct ON ect.cateringTentId = ct.id
+      LEFT JOIN EventAdventure ea ON e.id = ea.eventId
+      LEFT JOIN Adventure adv ON ea.adventureId = adv.id
+      LEFT JOIN EventBeautyDecor ebd ON e.id = ebd.eventId
+      LEFT JOIN BeautyDecor bd ON ebd.beautyDecorId = bd.id
+      LEFT JOIN EventMeeting em ON e.id = em.eventId
+      LEFT JOIN Meeting m ON em.meetingId = m.id
+      LEFT JOIN EventEntertainment ee ON e.id = ee.eventId
+      LEFT JOIN Entertainment ent ON ee.entertainmentId = ent.id
+      LEFT JOIN EventLuxury el ON e.id = el.eventId
+      LEFT JOIN Luxury lux ON el.luxuryId = lux.id
+      LEFT JOIN EventMusical emus ON e.id = emus.eventId
+      LEFT JOIN Musical mus ON emus.musicalId = mus.id
+      LEFT JOIN EventMultimedia emm ON e.id = emm.eventId
+      LEFT JOIN Multimedia mm ON emm.multimediaId = mm.id
+      ${whereClause}
+      ORDER BY e.updated_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+        const [bookings] = await db.execute(bookingsQuery, [...params, take, offset]);
+
+        // Group add-ons by event
+        const groupedBookings = [];
+        const map = new Map();
+
+        bookings.forEach((row) => {
+            const key = row.id;
+            if (!map.has(key)) {
+                map.set(key, {
+                    ...row,
+                    PartyPalace: [],
+                    CateringTent: [],
+                    Adventure: [],
+                    BeautyDecor: [],
+                    Meeting: [],
+                    Entertainment: [],
+                    Luxury: [],
+                    Musical: [],
+                    Multimedia: [],
+                });
+            }
+            const booking = map.get(key);
+
+            if (row.pp_id) booking.PartyPalace.push({ id: row.pp_id, partypalace_name: row.partypalace_name, price: row.pp_price });
+            if (row.ct_id) booking.CateringTent.push({ id: row.ct_id, catering_name: row.catering_name, price: row.ct_price });
+            if (row.adv_id) booking.Adventure.push({ id: row.adv_id, adventure_name: row.adventure_name, price: row.adv_price });
+            if (row.bd_id) booking.BeautyDecor.push({ id: row.bd_id, beauty_name: row.beauty_name, price: row.bd_price });
+            if (row.m_id) booking.Meeting.push({ id: row.m_id, meeting_name: row.meeting_name, price: row.m_price });
+            if (row.ent_id) booking.Entertainment.push({ id: row.ent_id, entertainment_name: row.entertainment_name, price: row.ent_price });
+            if (row.lux_id) booking.Luxury.push({ id: row.lux_id, luxury_name: row.luxury_name, price: row.lux_price });
+            if (row.mus_id) booking.Musical.push({ id: row.mus_id, instrument_name: row.instrument_name, price: row.mus_price });
+            if (row.mm_id) booking.Multimedia.push({ id: row.mm_id, multimedia_name: row.multimedia_name, price: row.mm_price });
         });
 
-        // Get the total count of bookings (useful for pagination)
-        const totalCount = await prisma.event.count({ where });
+        map.forEach((val) => groupedBookings.push(val));
 
         res.json({
             success: true,
             totalCount,
             totalPages: Math.ceil(totalCount / take),
             currentPage: parseInt(page),
-            bookings
+            bookings: groupedBookings,
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("getAllBookings error:", error);
+        res.status(500).json({ success: false, error: error.message });
     }
 };
 
-//! Bookings dashboard ko count 
+//! Dashboard Stats Endpoint
 const getBookingStats = async (req, res) => {
     try {
-        const bookingStats = await getDashboardBookingStats();
-
-        if (!bookingStats)
-            return res.status(404).json({ message: "Booking not found" })
-
-        res.status(200).json(bookingStats)
+        const stats = await getDashboardBookingStats();
+        res.json(stats);
     } catch (error) {
-        res.status(500).json({ error: error.message })
+        res.status(500).json({ success: false, error: error.message });
     }
-}
+};
 
-//! Get Booking by Id
+//! Get Booking by ID
 const getBookingById = async (req, res) => {
     const { id } = req.params;
     try {
-        const booking = await prisma.event.findUnique({
-            where: { id: parseInt(id) }
-        })
+        const [rows] = await db.execute(
+            `SELECT e.*, u.email as user_email, p.title as product_title, c.category_name
+       FROM Event e
+       JOIN User u ON e.userId = u.id
+       JOIN Product p ON e.productId = p.id
+       JOIN Category c ON p.category_id = c.id
+       WHERE e.id = ?`,
+            [id]
+        );
 
-        if (!booking) return res.status(404).json({ error: `Booking ${id} doesn't exist` })
-        res.json({ success: true, booking });
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, error: `Booking ${id} doesn't exist` });
+        }
 
+        res.json({ success: true, booking: rows[0] });
     } catch (error) {
-        res.status(500).json({ error: error.message })
+        res.status(500).json({ success: false, error: error.message });
     }
-}
+};
 
-//! Delete Booking By Id
+//! Delete Booking
 const deleteBookingById = async (req, res) => {
     const { id } = req.params;
-
     try {
-
-        const booking = await prisma.event.delete({
-            where: { id: parseInt(id) },
-        });
-
-        res.status(200).json({ success: true, message: "Booking Deleted" });
-    } catch (error) {
-        if (error.code === 'P2025') {
-            res.status(404).json({ error: `Booking with ID ${id} does not exist` });
-        } else {
-            res.status(500).json({ error: error.message });
+        const [result] = await db.execute(`DELETE FROM Event WHERE id = ?`, [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, error: `Booking with ID ${id} does not exist` });
         }
+        res.json({ success: true, message: "Booking Deleted" });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
 };
 
 //! Create Booking
 const createBooking = async (req, res) => {
+    const { start_date, end_date, start_time, end_time, userId, productId, Hall, events, is_approved } = req.body;
 
-    const { start_date, end_date, start_time, end_time, userId, productId, Hall, events, is_approved } = req.body
     try {
-        // const validatedData = createBookingSchema.parse(req.body)
-
         const startDate = new Date(start_date);
         const endDate = new Date(end_date);
         const combinedStartTime = combineDateAndTime(start_date, start_time);
         const combinedEndTime = combineDateAndTime(end_date, end_time);
 
-        const product = await prisma.product.findUnique({
-            where: {
-                id: productId,
-            },
-            select: { category: { select: { category_name: true } }, title: true }
-        });
+        const [[product]] = await db.execute(
+            `SELECT p.title, c.category_name 
+       FROM Product p 
+       JOIN Category c ON p.category_id = c.id 
+       WHERE p.id = ?`,
+            [productId]
+        );
 
-        if (!product || !product.category) {
-            return res.json({ error: 'Product or category not found' }, { status: 404 });
+        if (!product) {
+            return res.status(404).json({ success: false, error: "Product not found" });
         }
 
-        let categorySpecificData = {};
-        switch (product.category.category_name) {
-            case 'Party Palace':
-                categorySpecificData = {
-                    PartyPalace: { connect: Hall.map((hallId) => ({ id: parseInt(hallId) })) }
-                };
-                break;
-            case 'Multimedia':
-                categorySpecificData = {
-                    Multimedia: { connect: Hall.map((hallId) => ({ id: parseInt(hallId) })) }
-                };
-                break;
-            case 'Musical':
-                categorySpecificData = {
-                    Musical: { connect: Hall.map((hallId) => ({ id: parseInt(hallId) })) }
-                };
-                break;
-            case 'Luxury':
-                categorySpecificData = {
-                    Luxury: { connect: Hall.map((hallId) => ({ id: parseInt(hallId) })) }
-                };
-                break;
-            case 'Meeting':
-                categorySpecificData = {
-                    Meeting: { connect: Hall.map((hallId) => ({ id: parseInt(hallId) })) }
-                };
-                break;
-            case 'Adventure':
-                categorySpecificData = {
-                    Adventure: { connect: Hall.map((hallId) => ({ id: parseInt(hallId) })) }
-                };
-                break;
-            case 'Entertainment':
-                categorySpecificData = {
-                    Entertainment: { connect: Hall.map((hallId) => ({ id: parseInt(hallId) })) }
-                };
-                break;
-            case 'Catering & Tent':
-                categorySpecificData = {
-                    CateringTent: { connect: Hall.map((hallId) => ({ id: parseInt(hallId) })) }
-                };
-                break;
-            case 'Beauty & Decor':
-                categorySpecificData = {
-                    BeautyDecor: { connect: Hall.map((hallId) => ({ id: parseInt(hallId) })) }
-                };
-                break;
-            default:
-                categorySpecificData = {
-                    Hall: { connect: Hall.map((hallId) => ({ id: parseInt(hallId) })) }
-                };
+        // Conflict: Approved event on same date
+        const [[approvedConflict]] = await db.execute(
+            `SELECT 1 FROM Event WHERE productId = ? AND is_approved = 1 
+       AND start_date >= ? AND end_date <= ?`,
+            [productId, startDate, endDate]
+        );
+
+        if (approvedConflict) {
+            return res.status(409).json({ success: false, message: "Approved event exists on this date" });
         }
 
-        // let categorySpecificData = {};
-        // const categoryKey = categoryMap[product.category.category_name.replace(/\s/g, '')];
+        // Conflict: Overlapping pending booking
+        const [[overlap]] = await db.execute(
+            `SELECT 1 FROM Event 
+       WHERE productId = ? AND is_approved = 0 
+       AND start_date < ? AND end_date > ?`,
+            [productId, endDate, startDate]
+        );
 
-        // if (categoryKey && Hall && Array.isArray(Hall)) {
-        //     categorySpecificData[categoryKey] = {
-        //         connect: Hall.map((hallId) => ({ id: parseInt(hallId) })),
-        //     };
-        // } else {
-        //     // Handle fallback or errors for missing/invalid data
-        //     console.error("Invalid category or hall data");
-        //     return res.status(400).json({ error: "Invalid category or hall data" });
-        // }
+        if (overlap) {
+            return res.status(409).json({
+                success: false,
+                message: `Booking overlaps with existing request from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`,
+            });
+        }
 
-        const approvedEvent = await prisma.event.findFirst({
-            where: {
-                productId: productId,
-                is_approved: true,
-                start_date: {
-                    gte: startDate,
-                    lte: endDate,
-                },
-            },
-        });
+        // Insert Event
+        const [eventResult] = await db.execute(
+            `INSERT INTO Event 
+       (start_date, end_date, start_time, end_time, userId, productId, is_approved, is_rejected, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, NOW(), NOW())`,
+            [
+                startDate,
+                endDate,
+                combinedStartTime,
+                combinedEndTime,
+                userId,
+                productId,
+                is_approved === true || is_approved === "true",
+            ]
+        );
 
-        if (approvedEvent) {
-            return res.json(
-                { message: 'Booking not allowed: An approved event exists on this date.' },
-                { status: 409 }
+        const eventId = eventResult.insertId;
+
+        // Insert add-ons (dynamic)
+        if (Hall && Array.isArray(Hall)) {
+            const categoryKey = categoryMap[product.category_name.replace(/ & /g, "").replace(/\s/g, "")];
+            const tableMap = {
+                PartyPalace: "EventPartyPalace",
+                CateringTent: "EventCateringTent",
+                Adventure: "EventAdventure",
+                BeautyDecor: "EventBeautyDecor",
+                Meeting: "EventMeeting",
+                Entertainment: "EventEntertainment",
+                Luxury: "EventLuxury",
+                Musical: "EventMusical",
+                Multimedia: "EventMultimedia",
+            };
+
+            const junctionTable = tableMap[categoryKey];
+            if (junctionTable) {
+                const values = Hall.map((id) => [eventId, id]).map(([e, i]) => `(?, ?)`).join(", ");
+                await db.execute(
+                    `INSERT INTO ${junctionTable} (eventId, ${categoryKey.toLowerCase()}Id) VALUES ${values}`,
+                    Hall.flatMap((id) => [eventId, id])
+                );
+            }
+        }
+
+        // Insert event types
+        if (events && Array.isArray(events)) {
+            const values = events.map(() => `(?, ?)`).join(", ");
+            await db.execute(
+                `INSERT INTO EventEventType (eventId, eventTypeId) VALUES ${values}`,
+                events.flatMap((e) => [eventId, e.id])
             );
         }
 
-        const overlappingBooking = await prisma.event.findFirst({
-            where: {
-                productId: productId,
-                is_approved: false,
-                OR: [
-                    {
-                        start_date: {
-                            lt: endDate,
-                        },
-                        end_date: {
-                            gt: startDate,
-                        },
-                    },
-                ],
-            },
-        });
-
-        if (overlappingBooking) {
-            const startDateFormatted = new Date(startDate).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-            });
-            const endDateFormatted = new Date(endDate).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-            });
-
-            const startTimeFormatted = combinedStartTime;
-            const endTimeFormatted = combinedEndTime;
-
-            return res.status(409).json(`Booking already exists from ${startDateFormatted} to ${endDateFormatted}`);
-        }
-
-        //! Dynamic category wise product 
-        const newBooking = await prisma.event.create({
-            data: {
-                start_date: startDate,
-                end_date: endDate,
-                start_time: combinedStartTime,
-                end_time: combinedEndTime,
-                userId: parseInt(userId),
-                productId: parseInt(productId),
-                is_approved: is_approved ?? false,
-                is_rejected: false,
-                ...categorySpecificData,
-            },
-        });
-
-        await prisma.eventEventType.createMany({
-            data: events.map((event) => ({
-                eventId: newBooking.id,
-                eventTypeId: parseInt(event.id),
-            })),
-        });
-
-        const user = await prisma.user.findUnique({
-            where: {
-                id: parseInt(userId),
-            },
-            select: {
-                email: true,
-            },
-        });
-
+        // Send email to admin
+        const [[user]] = await db.execute(`SELECT email FROM User WHERE id = ?`, [userId]);
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: process.env.EMAIL_USER,
-            subject: 'New Venue Booking Request',
-            text: 'You have received a new venue booking request.',
+            subject: "New Venue Booking Request",
             html: `
-                <html>
-                <head>
-                    <style>
-                        body {
-                            font-family: Arial, sans-serif;
-                            margin: 0;
-                            padding: 20px;
-                            background-color: #f4f4f4;
-                        }
-                        .container {
-                            background-color: #fff;
-                            padding: 20px;
-                            border-radius: 5px;
-                            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-                        }
-                        h1 {
-                            color: #333;
-                        }
-                        .details {
-                            margin-top: 20px;
-                        }
-                        .details th {
-                            text-align: left;
-                            padding: 5px;
-                        }
-                        .details td {
-                            padding: 5px;
-                        }
-                        .footer {
-                            margin-top: 20px;
-                            font-size: 12px;
-                            color: #777;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <h1>New Venue Booking Request</h1>
-                        <p>You have received a new booking request. Here are the details:</p>
-                        <table class="details">
-                            <tr>
-                                <th>Start Date:</th>
-                                <td>${newBooking.start_date.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-            })}</td>
-                            </tr>
-                            <tr>
-                                <th>End Date:</th>
-                                <td>${newBooking.end_date.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-            })}</td>
-                            </tr>
-                    <tr>
-                    <th>User Name: </th>
-                        <td> ${user?.email}</td>
-                            </tr>
-                            <tr>
-                            <th>Product Name: </th>
-                                <td> ${product?.title} </td>
-                                    </tr>
-                                    </table>
-                                    <p> Please review and approve the booking at your earliest convenience.</p>
-                                        <div class="footer">
-                                            <p>Thank you! </p>
-                                                </div>
-                                                </div>
-                                                </body>
-                                                </html>
-                                                    `,
+        <h1>New Booking Request</h1>
+        <p><strong>User:</strong> ${user?.email}</p>
+        <p><strong>Product:</strong> ${product.title}</p>
+        <p><strong>From:</strong> ${startDate.toLocaleDateString()}</p>
+        <p><strong>To:</strong> ${endDate.toLocaleDateString()}</p>
+        <p>Please review in admin panel.</p>
+      `,
         };
 
         await transporter.sendMail(mailOptions);
 
-        return res.status(201).json({ booking: newBooking, success: true });
+        const [newBooking] = await db.execute(`SELECT * FROM Event WHERE id = ?`, [eventId]);
 
-    }
-    catch (error) {
+        res.status(201).json({ success: true, booking: newBooking[0] });
+    } catch (error) {
         if (error instanceof z.ZodError) {
-            return res.status(400).json({
-                success: false,
-                errors: error.errors.map((e) => e.message)
-            });
+            return res.status(400).json({ success: false, errors: error.errors.map((e) => e.message) });
         }
-        return res.status(500).json({ success: false, message: 'Error creating booking', error: error });
+        res.status(500).json({ success: false, error: error.message });
     }
-}
+};
 
-//! Update Booking 
+//! Update Booking (Approve/Reject)
 const updateBooking = async (req, res) => {
-
     const { id } = req.params;
-    const { is_approved } = req.body
-    // console.log(req.body)
-
-    // const is_approved = req.body.is_approved === 'true' ? "true" : "false";
+    const { is_approved } = req.body;
 
     try {
-        const updatedBooking = await prisma.event.update({
-            where: {
-                id: Number(id)
-            },
-            data: {
-                is_approved: is_approved
-            },
-            include: {
-                Product: true,
-                PartyPalace: true,
-                CateringTent: true,
-                Adventure: true,
-                BeautyDecor: true,
-                Meeting: true,
-                Entertainment: true,
-                Luxury: true,
-                Musical: true,
-                Multimedia: true
-            },
+        const approved = is_approved === true || is_approved === "true";
 
-        });
+        const [result] = await db.execute(
+            `UPDATE Event SET is_approved = ?, updated_at = NOW() WHERE id = ?`,
+            [approved, id]
+        );
 
-        if (is_approved) {
-            // Fetch the user's email using the userId from the booking
-            const user = await prisma.user.findUnique({
-                where: {
-                    id: updatedBooking.userId // Assuming userId is a field in the Event model
-                },
-                select: {
-                    email: true
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, error: "Booking not found" });
+        }
+
+        if (approved) {
+            const [[booking]] = await db.execute(
+                `SELECT e.*, u.email, p.title 
+         FROM Event e 
+         JOIN User u ON e.userId = u.id 
+         JOIN Product p ON e.productId = p.id 
+         WHERE e.id = ?`,
+                [id]
+            );
+
+            // Fetch add-ons
+            const addons = await Promise.all(
+                Object.keys(tableMap).map(async (key) => {
+                    const table = tableMap[key];
+                    const [rows] = await db.execute(
+                        `SELECT * FROM ${table} WHERE eventId = ?`,
+                        [id]
+                    );
+                    return { key, rows };
+                })
+            );
+
+            let productDetails = "";
+            addons.forEach(({ key, rows }) => {
+                if (rows.length > 0) {
+                    productDetails += `<h3>${key}:</h3>`;
+                    rows.forEach((r) => {
+                        const nameField = Object.keys(r).find((k) => k.includes("name"));
+                        const priceField = Object.keys(r).find((k) => k.includes("price"));
+                        productDetails += `<p>${r[nameField]} - ${r[priceField]}</p>`;
+                    });
                 }
             });
 
-            // Extracting category-based product titles and prices
-            let productDetails = '';
+            const mailOptions = {
+                from: process.env.EMAIL_USER,
+                to: booking.email,
+                subject: "Booking Approved!",
+                html: `
+          <h1>Booking Approved</h1>
+          <p><strong>Venue:</strong> ${booking.title}</p>
+          <p><strong>From:</strong> ${new Date(booking.start_date).toLocaleDateString()}</p>
+          <p><strong>To:</strong> ${new Date(booking.end_date).toLocaleDateString()}</p>
+          ${productDetails}
+          <p>Thank you!</p>
+        `,
+            };
 
-            if (updatedBooking.PartyPalace.length) {
-                productDetails += `<h3>Party Palace:</h3>`;
-                updatedBooking.PartyPalace.forEach(item => {
-                    productDetails += `<p>Title: ${item.partypalace_name}, Price: ${item.price}</p>`;
-                });
-            }
-
-            if (updatedBooking.CateringTent.length) {
-                productDetails += `<h3>Catering Tent:</h3>`;
-                updatedBooking.CateringTent.forEach(item => {
-                    productDetails += `<p>Title: ${item.catering_name}, Price: ${item.price}</p>`;
-                });
-            }
-            if (updatedBooking.Adventure.length) {
-                productDetails += `<h3>Adventure:</h3>`;
-                updatedBooking.Adventure.forEach(item => {
-                    productDetails += `<p>Title: ${item.adventure_name}, Price: ${item.price}</p>`;
-                });
-            }
-
-            if (updatedBooking.BeautyDecor.length) {
-                productDetails += `<h3>Beauty & Decoration:</h3>`;
-                updatedBooking.BeautyDecor.forEach(item => {
-                    productDetails += `<p>Title: ${item.beauty_name}, Price: ${item.price}</p>`;
-                });
-            }
-            if (updatedBooking.Meeting.length) {
-                productDetails += `<h3>Meeting:</h3>`;
-                updatedBooking.Meeting.forEach(item => {
-                    productDetails += `<p>Title: ${item.meeting_name}, Price: ${item.price}</p>`;
-                });
-            }
-
-            if (updatedBooking.Entertainment.length) {
-                productDetails += `<h3>Entertainment:</h3>`;
-                updatedBooking.Entertainment.forEach(item => {
-                    productDetails += `<p>Title: ${item.entertainment_name}, Price: ${item.price}</p>`;
-                });
-            }
-            if (updatedBooking.Luxury.length) {
-                productDetails += `<h3>Luxury:</h3>`;
-                updatedBooking.Luxury.forEach(item => {
-                    productDetails += `<p>Title: ${item.luxury_name}, Price: ${item.price}</p>`;
-                });
-            }
-
-            if (updatedBooking.Musical.length) {
-                productDetails += `<h3>Musical Items:</h3>`;
-                updatedBooking.Musical.forEach(item => {
-                    productDetails += `<p>Title: ${item.instrument_name}, Price: ${item.price}</p>`;
-                });
-            }
-            if (updatedBooking.Multimedia.length) {
-                productDetails += `<h3>Multimedia:</h3>`;
-                updatedBooking.Multimedia.forEach(item => {
-                    productDetails += `<p>Title: ${item.multimedia_name}, Price: ${item.price}</p>`;
-                });
-            }
-
-            if (user) {
-
-                // const hallNames = updatedBooking.Hall.map(hall => hall.hall_capacity).join(", ");
-
-                const mailOptions = {
-                    from: process.env.EMAIL_USER,
-                    to: user.email,
-                    subject: 'Booking Approved',
-                    html: `
-                        <h1>Your Booking Has Been Approved!</h1>
-                        <p>Your booking for the event has been approved. Here are the details:</p>
-                        <p><strong>Product Name:</strong> ${updatedBooking.Product.title}</p>
-                        <p><strong>Status:</strong> Approved</p>
-                        <p>${productDetails}</p>
-                        <p><strong>Start Date:</strong> ${updatedBooking.start_date.toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                    })}</p>
-                        <p><strong>End Date:</strong> ${updatedBooking.end_date.toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                    })}</p>
-                        <p>Thank you for choosing us!</p>
-                    `,
-                };
-
-                await transporter.sendMail(mailOptions);
-            }
+            await transporter.sendMail(mailOptions);
         }
-        // revalidatePath('/dashboard/venue')
-        return res.status(200).json({ success: true, error: false, message: "Booking Approved" })
+
+        res.json({ success: true, message: approved ? "Booking Approved" : "Booking Updated" });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
-    catch (err) {
-        return res.status(500).json({ success: false, error: "Internal Server Error" })
-    }
-}
+};
+
+const tableMap = {
+    PartyPalace: "EventPartyPalace",
+    CateringTent: "EventCateringTent",
+    Adventure: "EventAdventure",
+    BeautyDecor: "EventBeautyDecor",
+    Meeting: "EventMeeting",
+    Entertainment: "EventEntertainment",
+    Luxury: "EventLuxury",
+    Musical: "EventMusical",
+    Multimedia: "EventMultimedia",
+};
 
 export {
     getAllBookings,
@@ -601,5 +451,5 @@ export {
     getBookingStats,
     deleteBookingById,
     createBooking,
-    updateBooking
-}
+    updateBooking,
+};

@@ -1,148 +1,152 @@
+// controllers/eventTypeController.js
 import { eventTypeSchema } from "../utils/validationSchema.js";
+import { z } from "zod";
+import db from "../config/prisma.js";
 
-
-import { prisma } from '../config/prisma.js'
-
-
-//! Get all EventType
+//! Get All Event Types (with search & pagination)
 const getAllEventTypes = async (req, res) => {
-
     try {
         const { search, page = 1, limit = 10 } = req.query;
-
-        const where = search
-            ? {
-                OR: [
-                    { title: { contains: search.toLowerCase() } },
-                ]
-            }
-            : {};
-
-        const skip = (page - 1) * limit;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
         const take = parseInt(limit);
 
-        const eventTypes = await prisma.eventType.findMany({
-            where,
-            orderBy: { updatedAt: 'desc' },
-            skip,
-            take,
-        });
+        let whereClause = "";
+        let params = [];
 
-        const totalCount = await prisma.eventType.count({ where });
+        if (search) {
+            const searchTerm = `%${search.toLowerCase()}%`;
+            whereClause = `WHERE LOWER(title) LIKE ?`;
+            params.push(searchTerm);
+        }
+
+        // Count total
+        const countQuery = `SELECT COUNT(*) as total FROM EventType ${whereClause}`;
+        const [countResult] = await db.execute(countQuery, params);
+        const totalCount = countResult[0].total;
+
+        // Fetch event types
+        const eventTypesQuery = `
+      SELECT * FROM EventType
+      ${whereClause}
+      ORDER BY updated_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+        const [eventTypes] = await db.execute(eventTypesQuery, [...params, take, offset]);
 
         res.json({
             success: true,
             totalCount,
             totalPages: Math.ceil(totalCount / take),
             currentPage: parseInt(page),
-            eventTypes
+            eventTypes,
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("getAllEventTypes error:", error);
+        res.status(500).json({ success: false, error: error.message });
     }
 };
 
-//! Get EventType by Id
+//! Get Event Type by ID
 const getEventTypeById = async (req, res) => {
     const { id } = req.params;
     try {
-        const eventType = await prisma.eventType.findUnique({
-            where: { id: Number(id) }
-        })
+        const [rows] = await db.execute(`SELECT * FROM EventType WHERE id = ?`, [id]);
 
-        if (!eventType) return res.status(404).json({ error: `Event Type ${id} doesn't exist.` })
-
-        res.json({ success: true, eventType })
-    } catch (error) {
-        res.status(500).json({ error: error.message })
-    }
-}
-
-//! Delete EventType By Id
-const deleteEventTypeById = async (req, res) => {
-    const { id } = req.params;
-    try {
-
-        const eventType = await prisma.eventType.delete({
-            where: { id: parseInt(id) },
-        });
-
-        res.status(200).json({ success: true, message: "Event Type Deleted" });
-    } catch (error) {
-        if (error.code === 'P2025') {
-            res.status(404).json({ error: `Event Type with ID ${id} does not exist` });
-        } else {
-            res.status(500).json({ error: error.message });
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, error: `Event Type ${id} doesn't exist.` });
         }
+
+        res.json({ success: true, eventType: rows[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
 };
 
-//! Create new Event Type 
-const createEventType = async (req, res) => {
-
+//! Delete Event Type by ID
+const deleteEventTypeById = async (req, res) => {
+    const { id } = req.params;
     try {
+        const [result] = await db.execute(`DELETE FROM EventType WHERE id = ?`, [id]);
 
-        const validatedData = eventTypeSchema.parse(req.body)
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, error: `Event Type with ID ${id} does not exist` });
+        }
 
+        res.json({ success: true, message: "Event Type Deleted" });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+//! Create Event Type
+const createEventType = async (req, res) => {
+    try {
+        const validatedData = eventTypeSchema.parse(req.body);
         const { title } = validatedData;
 
-        const eventType = await prisma.eventType.create({
-            data: {
-                title: title,
+        const [result] = await db.execute(
+            `INSERT INTO EventType (title, created_at, updated_at)
+       VALUES (?, NOW(), NOW())`,
+            [title]
+        );
 
-            }
-        })
-        res.status(201).json({ success: true, eventType })
+        const [newEventType] = await db.execute(`SELECT * FROM EventType WHERE id = ?`, [result.insertId]);
+
+        res.status(201).json({ success: true, eventType: newEventType[0] });
     } catch (error) {
         if (error instanceof z.ZodError) {
             return res.status(400).json({
                 success: false,
-                errors: error.errors.map((e) => e.message)
+                errors: error.errors.map((e) => e.message),
             });
         }
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ success: false, error: error.message });
     }
-}
+};
 
-//! Update an event Type 
+//! Update Event Type
 const updateEventType = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const validatedData = eventTypeSchema.parse(req.body)
-
+        const validatedData = eventTypeSchema.parse(req.body);
         const { title } = validatedData;
 
-        const eventType = await prisma.eventType.update({
-            where: { id: Number(id) },
-            data: {
-                title: title,
-            }
-        })
+        const [result] = await db.execute(
+            `UPDATE EventType SET title = ?, updated_at = NOW() WHERE id = ?`,
+            [title, id]
+        );
 
-        if (!eventType) return res.status(404).json({ message: "Event Type not found" })
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, error: "Event Type not found" });
+        }
 
-        res.status(200).json({ success: true, message: "EventType Updated", eventType })
+        const [updatedEventType] = await db.execute(`SELECT * FROM EventType WHERE id = ?`, [id]);
+
+        res.json({
+            success: true,
+            message: "EventType Updated",
+            eventType: updatedEventType[0],
+        });
     } catch (error) {
-
         if (error instanceof z.ZodError) {
-            const errorMessages = error.errors.map((err) => ({
-                field: err.path.join('.'),
-                message: err.message // Custom error message
-            }));
             return res.status(400).json({
                 success: false,
-                errors: errorMessages
+                errors: error.errors.map((err) => ({
+                    field: err.path.join("."),
+                    message: err.message,
+                })),
             });
         }
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ success: false, error: error.message });
     }
-}
+};
 
 export {
     getAllEventTypes,
     getEventTypeById,
     deleteEventTypeById,
     createEventType,
-    updateEventType
-}
+    updateEventType,
+};

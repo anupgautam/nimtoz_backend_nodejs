@@ -1,42 +1,52 @@
-import { prisma } from "../config/prisma.js";
-
+// controllers/authController.js
+import db from "../config/prisma.js"; 
 
 const verifyOTP = async (req, res) => {
-    const { email, otp } = req.body;
+  const { email, otp } = req.body;
 
-    if (!email || !otp) {
-        return res.status(400).send("Email and OTP are required")
+  if (!email || !otp) {
+    return res.status(400).json({ success: false, message: "Email and OTP are required" });
+  }
+
+  try {
+    // Find user by email
+    const [users] = await db.execute(
+      `SELECT id, isVerified, otp, otpExpiresAt FROM User WHERE email = ?`,
+      [email]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
+    const user = users[0];
 
-    try {
-        const user = await prisma.user.findUnique({
-            where: { email }
-        })
-
-        if (!user) return res.status(404).send('User not found');
-        if (user.isVerified) return res.status(400).send('User is already verified');
-        if (user.otp !== otp || user.otpExpiresAt < new Date())
-            return res.status(400).send('Invalid or expired OTP');
-
-        await prisma.user.update({
-            where: { email },
-            data: { isVerified: true, otp: null, otpExpiresAt: null },
-        });
-
-        return res.status(200).json({ success: true, message: "Account verified successfully" })
-
-    } catch (error) {
-        if (error instanceof z.ZodError) {
-            return res.status(400).json({
-                success: false,
-                errors: error.errors.map((e) => e.message)
-            });
-        }
-        res.status(400).json({ error: error.message });
+    // Already verified
+    if (user.isVerified) {
+      return res.status(400).json({ success: false, message: "User is already verified" });
     }
-}
 
-export {
-    verifyOTP
-}
+    // Invalid or expired OTP
+    if (user.otp !== otp || user.otpExpiresAt < new Date()) {
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+    }
+
+    // Mark as verified and clear OTP
+    await db.execute(
+      `UPDATE User 
+       SET isVerified = 1, otp = NULL, otpExpiresAt = NULL 
+       WHERE id = ?`,
+      [user.id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Account verified successfully",
+    });
+  } catch (error) {
+    console.error("verifyOTP error:", error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+export { verifyOTP };

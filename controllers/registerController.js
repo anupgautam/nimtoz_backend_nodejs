@@ -1,31 +1,37 @@
+// controllers/userController.js
 import { registerSchema } from "../utils/validationSchema.js";
-import bcrypt from 'bcryptjs'
+import bcrypt from "bcryptjs";
 import { generateAccesstoken, generateRefreshToken } from "../auth/generateTokens.js";
-import { z } from 'zod'
-import nodemailer from 'nodemailer'
+import { z } from "zod";
+import nodemailer from "nodemailer";
 import axios from "axios";
+import db from "../config/prisma.js";
 
-import { prisma } from '../config/prisma.js'
+// Helper: Execute query
+const query = async (sql, params = []) => {
+    const [rows] = await db.execute(sql, params);
+    return rows;
+};
 
-
-//! OTP wala
+//! Send OTP via Email
 const sendOTPEmail = async (email, otp) => {
     const transporter = nodemailer.createTransport({
-        service: 'Gmail',
+        service: "Gmail",
         auth: {
-            user: process.env.EMAIL_USER, // Gmail email address
-            pass: process.env.EMAIL_PASS, // Gmail app password
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
         },
     });
+
     await transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: email,
-        subject: 'Your OTP Code',
+        subject: "Your OTP Code",
         text: `Your OTP code is: ${otp}`,
     });
-    console.log('transporter', transporter);
-}
+};
 
+//! Send OTP via SMS
 const sendOTPSMS = async (phone, otp) => {
     const apiKey = process.env.SMS_API_KEY;
     const senderId = "FSN_Alert";
@@ -33,7 +39,6 @@ const sendOTPSMS = async (phone, otp) => {
 
     try {
         const url = `https://samayasms.com.np/smsapi/index?key=${apiKey}&contacts=${phone}&senderid=${senderId}&msg=${message}&responsetype=json`;
-
         const response = await axios.get(url);
         return response.data;
     } catch (error) {
@@ -42,189 +47,195 @@ const sendOTPSMS = async (phone, otp) => {
     }
 };
 
-
-//! Get All Users
+//! Get All Users (with search & pagination)
 const getAllUsers = async (req, res) => {
-
     try {
         const { search, page = 1, limit = 10 } = req.query;
-
-        const where = search
-            ? {
-                OR: [
-                    { firstname: { contains: search.toLowerCase() } },
-                    { lastname: { contains: search.toLowerCase() } },
-                    { email: { contains: search.toLowerCase() } },
-                    { phone_number: { contains: search.toLowerCase() } },
-                ]
-            }
-            : {};
-
-        const skip = (page - 1) * limit;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
         const take = parseInt(limit);
 
-        const users = await prisma.user.findMany({
-            where,
-            include: {
-                events_booked: true
-            },
-            orderBy: { updatedAt: 'desc' },
-            skip,
-            take,
-        });
+        let whereClause = "";
+        let params = [];
 
-        const totalCount = await prisma.user.count({ where });
+        if (search) {
+            const term = `%${search.toLowerCase()}%`;
+            whereClause = `WHERE LOWER(firstname) LIKE ? OR LOWER(lastname) LIKE ? OR LOWER(email) LIKE ? OR LOWER(phone_number) LIKE ?`;
+            params.push(term, term, term, term);
+        }
+
+        // Count total
+        const countQuery = `SELECT COUNT(*) as total FROM User ${whereClause}`;
+        const [countResult] = await db.execute(countQuery, params);
+        const totalCount = countResult[0].total;
+
+        // Fetch users with booking count
+        const usersQuery = `
+      SELECT 
+        u.*,
+        COUNT(e.id) as booking_count
+      FROM User u
+      LEFT JOIN EventBooking e ON u.id = e.userId
+      ${whereClause}
+      GROUP BY u.id
+      ORDER BY u.updated_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+        const users = await query(usersQuery, [...params, take, offset]);
 
         res.json({
             success: true,
             totalCount,
             totalPages: Math.ceil(totalCount / take),
             currentPage: parseInt(page),
-            users
+            users: users.map(u => ({
+                ...u,
+                events_booked: Array(u.booking_count).fill({}), // simulate relation
+            })),
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("getAllUsers error:", error);
+        res.status(500).json({ success: false, error: error.message });
     }
 };
 
-//! Get Top 3 bookers
+//! Get Top 3 Bookers
 const getTopBookers = async (req, res) => {
     try {
-        const topUsers = await prisma.user.findMany({
-            take: 3,
-            orderBy: {
-                events_booked: {
-                    _count: 'desc',
-                },
-            },
-            where: {
-                events_booked: {
-                    some: {
-                        is_approved: true,
-                    },
-                },
-            },
-            select: {
-                firstname: true,
-                lastname: true,
-                events_booked: true,
-            },
-        });
+        const topUsers = await query(`
+      SELECT 
+        u.firstname, u.lastname,
+        COUNT(e.id) as booking_count
+      FROM User u
+      JOIN EventBooking e ON u.id = e.userId
+      WHERE e.is_approved = 1
+      GROUP BY u.id
+      ORDER BY booking_count DESC
+      LIMIT 3
+    `);
 
-        if (!topUsers) return res.status(404).json({ success: false })
-        res.json(topUsers)
-
+        res.json(topUsers.map(u => ({
+            firstname: u.firstname,
+            lastname: u.lastname,
+            events_booked: Array(u.booking_count).fill({}),
+        })));
     } catch (error) {
-        res.status(500).json({ error: error.message })
+        res.status(500).json({ success: false, error: error.message });
     }
-}
-//! Get User by Id
+};
+
+//! Get User by ID
 const getUserById = async (req, res) => {
     const { id } = req.params;
     try {
-        const user = await prisma.user.findUnique({
-            where: { id: Number(id) }
-        })
+        const [rows] = await db.execute(`SELECT * FROM User WHERE id = ?`, [id]);
 
-        if (!user) return res.status(404).json({ error: `User ${id} doesn't exist.` })
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, error: `User ${id} doesn't exist.` });
+        }
 
-        res.json({ success: true, user })
+        res.json({ success: true, user: rows[0] });
     } catch (error) {
-        res.status(500).json({ error: error.message })
+        res.status(500).json({ success: false, error: error.message });
     }
-}
+};
 
-//! Delete User By Id
+//! Delete User by ID
 const deleteUserById = async (req, res) => {
     const { id } = req.params;
     try {
+        const [result] = await db.execute(`DELETE FROM User WHERE id = ?`, [id]);
 
-        const user = await prisma.user.delete({
-            where: { id: parseInt(id) },
-        });
-
-        res.status(200).json({ success: true, message: "User Deleted" });
-    } catch (error) {
-        if (error.code === 'P2025') {
-            res.status(404).json({ error: `User with ID ${id} does not exist` });
-        } else {
-            res.status(500).json({ error: error.message });
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, error: `User with ID ${id} does not exist` });
         }
+
+        res.json({ success: true, message: "User Deleted" });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
 };
 
 //! Register User
 const createUser = async (req, res) => {
-
-    const validatedData = registerSchema.parse(req.body)
-    const { firstname, lastname, email, password, phone_number } = validatedData;
-
-    const existingUser = await prisma.user.findUnique({
-
-        where: { email }
-    })
-
-    if (existingUser) {
-        return res.status(400).json({ error: `User with this phone number ${existingUser.phone_number} & email ${existingUser.email} already exists` })
-    }
-
     try {
-        const hashedPassword = bcrypt.hashSync(password, 10)
+        const validatedData = registerSchema.parse(req.body);
+        const { firstname, lastname, email, password, phone_number } = validatedData;
+
+        // Check if user exists
+        const [existing] = await db.execute(`SELECT id FROM User WHERE email = ? OR phone_number = ?`, [email, phone_number]);
+        if (existing.length > 0) {
+            return res.status(400).json({
+                success: false,
+                error: `User with this email or phone number already exists`,
+            });
+        }
+
+        const hashedPassword = bcrypt.hashSync(password, 10);
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min
 
-        const user = await prisma.user.create({
-            data: {
-                firstname: firstname,
-                lastname: lastname,
-                email: email,
-                phone_number: phone_number,
-                password: hashedPassword,
-                role: "USER",
-                otp,
-                otpExpiresAt: new Date(Date.now() + 15 * 60 * 1000), // OTP expires in 15 minutes
-            }
-        })
+        const [result] = await db.execute(
+            `INSERT INTO User 
+       (firstname, lastname, email, phone_number, password, role, otp, otpExpiresAt, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'USER', ?, ?, NOW(), NOW())`,
+            [firstname, lastname, email, phone_number, hashedPassword, otp, otpExpiresAt]
+        );
 
+        // Send OTP via SMS
         await sendOTPSMS(phone_number, otp);
 
-        res.status(201).json({ success: true, message: 'User registered successfully.', user: user });
+        const [newUser] = await db.execute(`SELECT id, firstname, lastname, email, phone_number, role FROM User WHERE id = ?`, [result.insertId]);
 
+        res.status(201).json({
+            success: true,
+            message: "User registered successfully.",
+            user: newUser[0],
+        });
     } catch (error) {
         if (error instanceof z.ZodError) {
             return res.status(400).json({
                 success: false,
-                errors: error.errors.map((e) => e.message)
+                errors: error.errors.map((e) => e.message),
+            });
+        }
+        console.error("createUser error:", error);
+        res.status(400).json({ success: false, error: error.message });
+    }
+};
+
+//! Update User Role
+const updateUser = async (req, res) => {
+    const { id } = req.params;
+    const { role } = req.body;
+
+    try {
+        const [result] = await db.execute(
+            `UPDATE User SET role = ?, updated_at = NOW() WHERE id = ?`,
+            [role, id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, error: "User not found" });
+        }
+
+        const [updatedUser] = await db.execute(`SELECT id, firstname, lastname, email, phone_number, role FROM User WHERE id = ?`, [id]);
+
+        res.json({
+            success: true,
+            message: "User Role Updated",
+            user: updatedUser[0],
+        });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({
+                success: false,
+                errors: error.errors.map((e) => e.message),
             });
         }
         res.status(400).json({ success: false, error: error.message });
     }
-}
-
-//! Update User Role
-const updateUser = async (req, res) => {
-
-    const { id } = req.params;
-
-    try {
-        const { role } = req.body;
-        const user = await prisma.user.update({
-            where: { id: Number(id) },
-            data: {
-                role
-            }
-        })
-        res.status(200).json({ success: true, message: "User Role", user })
-    } catch (error) {
-
-        if (error instanceof z.ZodError) {
-            return res.status(400).json({
-                success: false,
-                errors: error.errors.map((e) => e.message)
-            });
-        }
-        res.status(400).json({ error: error.message });
-    }
-}
+};
 
 export {
     getAllUsers,
@@ -233,4 +244,4 @@ export {
     deleteUserById,
     createUser,
     updateUser,
-}
+};
