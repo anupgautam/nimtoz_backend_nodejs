@@ -1,0 +1,11 @@
+{
+    "dev" : {
+"driver" : "mysql",
+"user" : "root",
+"host" : "localhost",
+"password" : "",
+"database": "nimtoz",
+"port" : "3306"
+
+    } 
+}

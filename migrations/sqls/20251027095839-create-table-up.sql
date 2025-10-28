@@ -1,24 +1,35 @@
--- 02-create-all.sql
+-- 20251027095839-create-table-up.sql
 -- -------------------------------------------------
--- ENUMS (MySQL does not have native ENUM, we use a CHECK)
+-- ROLES (Using VARCHAR with trigger for MariaDB compatibility)
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Role` (
-  `role` ENUM('SUPER_ADMIN','ADMIN','USER') PRIMARY KEY
+CREATE TABLE `Role` (
+  `role` VARCHAR(50) PRIMARY KEY
 ) ENGINE=InnoDB;
 
-INSERT IGNORE INTO `Role` (`role`) VALUES ('SUPER_ADMIN'),('ADMIN'),('USER');
+INSERT IGNORE INTO `Role` (`role`) VALUES ('SUPER_ADMIN'), ('ADMIN'), ('USER');
+
+
+-- CREATE TRIGGER check_role
+-- BEFORE INSERT ON `Role`
+-- FOR EACH ROW
+-- BEGIN
+--   IF NEW.role NOT IN ('SUPER_ADMIN', 'ADMIN', 'USER') THEN
+--     SIGNAL SQLSTATE '45000'
+--     SET MESSAGE_TEXT = 'Role must be SUPER_ADMIN, ADMIN, or USER';
+--   END IF;
+-- END;
 
 -- -------------------------------------------------
 -- USER
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `User` (
+CREATE TABLE `User` (
   `id`                       INT AUTO_INCREMENT PRIMARY KEY,
   `firstname`                VARCHAR(255) NOT NULL,
   `lastname`                 VARCHAR(255) NOT NULL,
   `email`                    VARCHAR(255) NOT NULL UNIQUE,
   `password`                 VARCHAR(255) NOT NULL,
   `phone_number`             VARCHAR(255) NOT NULL UNIQUE,
-  `role`                     ENUM('SUPER_ADMIN','ADMIN','USER') DEFAULT 'USER',
+  `role`                     VARCHAR(50) DEFAULT 'USER',
   `avatar`                   VARCHAR(255) NULL,
   `resetPasswordToken`       VARCHAR(255) NULL,
   `resetPasswordTokenExpiry` DATETIME NULL,
@@ -27,13 +38,13 @@ CREATE TABLE IF NOT EXISTS `User` (
   `otpExpiresAt`             DATETIME NULL,
   `isVerified`               BOOLEAN DEFAULT FALSE,
   `created_at`               DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `updated_at`               DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `updated_at`               DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`role`) REFERENCES `Role`(`role`) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
-
 -- -------------------------------------------------
 -- CATEGORY
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Category` (
+CREATE TABLE `Category` (
   `id`            INT AUTO_INCREMENT PRIMARY KEY,
   `category_name` VARCHAR(255) NOT NULL UNIQUE,
   `category_icon` VARCHAR(255) NOT NULL,
@@ -44,7 +55,7 @@ CREATE TABLE IF NOT EXISTS `Category` (
 -- -------------------------------------------------
 -- DISTRICT
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `District` (
+CREATE TABLE `District` (
   `id`            INT AUTO_INCREMENT PRIMARY KEY,
   `district_name` VARCHAR(255) NOT NULL UNIQUE,
   `created_at`    DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -54,7 +65,7 @@ CREATE TABLE IF NOT EXISTS `District` (
 -- -------------------------------------------------
 -- VENUE (business)
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Venue` (
+CREATE TABLE `Venue` (
   `id`             INT AUTO_INCREMENT PRIMARY KEY,
   `venue_name`     VARCHAR(255) NOT NULL UNIQUE,
   `venue_address`  VARCHAR(255) NOT NULL,
@@ -70,7 +81,7 @@ CREATE TABLE IF NOT EXISTS `Venue` (
 -- -------------------------------------------------
 -- EVENTTYPE
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `EventType` (
+CREATE TABLE `EventType` (
   `id`         INT AUTO_INCREMENT PRIMARY KEY,
   `title`      VARCHAR(255) NOT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -80,7 +91,7 @@ CREATE TABLE IF NOT EXISTS `EventType` (
 -- -------------------------------------------------
 -- PRODUCT
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Product` (
+CREATE TABLE `Product` (
   `id`               INT AUTO_INCREMENT PRIMARY KEY,
   `title`            VARCHAR(255) NOT NULL,
   `description`      TEXT NOT NULL,
@@ -93,29 +104,27 @@ CREATE TABLE IF NOT EXISTS `Product` (
   `businessId`       INT NOT NULL,
   `created_at`       DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
   FOREIGN KEY (`category_id`) REFERENCES `Category`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`districtId`)  REFERENCES `District`(`id`)  ON DELETE CASCADE,
-  FOREIGN KEY (`businessId`)  REFERENCES `Venue`(`id`)     ON DELETE CASCADE
+  FOREIGN KEY (`districtId`)  REFERENCES `District`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`businessId`)  REFERENCES `Venue`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- PRODUCT IMAGE
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ProductImage` (
+CREATE TABLE `ProductImage` (
   `id`         INT AUTO_INCREMENT PRIMARY KEY,
   `url`        VARCHAR(255) NOT NULL,
   `productId`  INT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- MULTIMEDIA (Photography / Videography)
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Multimedia` (
+CREATE TABLE `Multimedia` (
   `id`            INT AUTO_INCREMENT PRIMARY KEY,
   `multimedia_name` VARCHAR(255) NOT NULL,
   `price`         INT NOT NULL,
@@ -124,14 +133,13 @@ CREATE TABLE IF NOT EXISTS `Multimedia` (
   `productId`     INT NULL,
   `created_at`    DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- MUSICAL
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Musical` (
+CREATE TABLE `Musical` (
   `id`             INT AUTO_INCREMENT PRIMARY KEY,
   `instrument_name` VARCHAR(255) NOT NULL,
   `price`          INT NOT NULL,
@@ -140,14 +148,13 @@ CREATE TABLE IF NOT EXISTS `Musical` (
   `productId`      INT NULL,
   `created_at`     DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- LUXURY
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Luxury` (
+CREATE TABLE `Luxury` (
   `id`          INT AUTO_INCREMENT PRIMARY KEY,
   `luxury_name` VARCHAR(255) NOT NULL,
   `price`       INT NOT NULL,
@@ -156,14 +163,13 @@ CREATE TABLE IF NOT EXISTS `Luxury` (
   `productId`   INT NULL,
   `created_at`  DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- ENTERTAINMENT
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Entertainment` (
+CREATE TABLE `Entertainment` (
   `id`               INT AUTO_INCREMENT PRIMARY KEY,
   `entertainment_name` VARCHAR(255) NOT NULL,
   `price`            INT NOT NULL,
@@ -172,14 +178,13 @@ CREATE TABLE IF NOT EXISTS `Entertainment` (
   `productId`        INT NULL,
   `created_at`       DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- MEETING
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Meeting` (
+CREATE TABLE `Meeting` (
   `id`          INT AUTO_INCREMENT PRIMARY KEY,
   `meeting_name` VARCHAR(255) NOT NULL,
   `price`       INT NOT NULL,
@@ -188,14 +193,13 @@ CREATE TABLE IF NOT EXISTS `Meeting` (
   `productId`   INT NULL,
   `created_at`  DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- BEAUTY & DECOR
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `BeautyDecor` (
+CREATE TABLE `BeautyDecor` (
   `id`          INT AUTO_INCREMENT PRIMARY KEY,
   `beauty_name` VARCHAR(255) NOT NULL,
   `price`       INT NOT NULL,
@@ -204,14 +208,13 @@ CREATE TABLE IF NOT EXISTS `BeautyDecor` (
   `productId`   INT NULL,
   `created_at`  DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- ADVENTURE
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Adventure` (
+CREATE TABLE `Adventure` (
   `id`            INT AUTO_INCREMENT PRIMARY KEY,
   `adventure_name` VARCHAR(255) NOT NULL,
   `price`         INT NOT NULL,
@@ -220,14 +223,13 @@ CREATE TABLE IF NOT EXISTS `Adventure` (
   `productId`     INT NULL,
   `created_at`    DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- PARTY PALACE
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `PartyPalace` (
+CREATE TABLE `PartyPalace` (
   `id`               INT AUTO_INCREMENT PRIMARY KEY,
   `partypalace_name` VARCHAR(255) NOT NULL,
   `price`            INT NOT NULL,
@@ -236,14 +238,13 @@ CREATE TABLE IF NOT EXISTS `PartyPalace` (
   `productId`        INT NULL,
   `created_at`       DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- CATERING / TENT
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `CateringTent` (
+CREATE TABLE `CateringTent` (
   `id`           INT AUTO_INCREMENT PRIMARY KEY,
   `catering_name` VARCHAR(255) NOT NULL,
   `price`        INT NOT NULL,
@@ -252,14 +253,13 @@ CREATE TABLE IF NOT EXISTS `CateringTent` (
   `productId`    INT NULL,
   `created_at`   DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- EVENT
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Event` (
+CREATE TABLE `Event` (
   `id`            INT AUTO_INCREMENT PRIMARY KEY,
   `start_date`    DATETIME NOT NULL,
   `end_date`      DATETIME NOT NULL,
@@ -272,8 +272,7 @@ CREATE TABLE IF NOT EXISTS `Event` (
   `approved_by_id` INT NULL,
   `created_at`    DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-  FOREIGN KEY (`userId`)    REFERENCES `User`(`id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT,
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`approved_by_id`) REFERENCES `User`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
@@ -281,35 +280,47 @@ CREATE TABLE IF NOT EXISTS `Event` (
 -- -------------------------------------------------
 -- EVENT ↔ EVENTTYPE (junction)
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `EventEventType` (
+CREATE TABLE `EventEventType` (
   `eventId`     INT NOT NULL,
   `eventTypeId` INT NOT NULL,
-  PRIMARY KEY (`eventId`,`eventTypeId`),
-  FOREIGN KEY (`eventId`)     REFERENCES `Event`(`id`)     ON DELETE CASCADE,
+  PRIMARY KEY (`eventId`, `eventTypeId`),
+  FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`eventTypeId`) REFERENCES `EventType`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- PRODUCT RATING
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ProductRating` (
+CREATE TABLE `ProductRating` (
   `id`        INT AUTO_INCREMENT PRIMARY KEY,
-  `rating`    INT NOT NULL CHECK (`rating` BETWEEN 1 AND 5),
+  `rating`    INT NOT NULL,
   `review`    TEXT NULL,
   `userId`    INT NOT NULL,
   `productId` INT NOT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-  UNIQUE KEY `uq_user_product` (`userId`,`productId`),
-  FOREIGN KEY (`userId`)    REFERENCES `User`(`id`)    ON DELETE CASCADE,
+  UNIQUE KEY `uq_user_product` (`userId`, `productId`),
+  FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- -- Trigger for rating validation
+
+-- CREATE TRIGGER check_rating
+-- BEFORE INSERT ON `ProductRating`
+-- FOR EACH ROW
+-- BEGIN
+--   IF NEW.rating < 1 OR NEW.rating > 5 THEN
+--     SIGNAL SQLSTATE '45000'
+--     SET MESSAGE_TEXT = 'Rating must be between 1 and 5';
+--   END IF;
+-- END 
+-- ;
 
 -- -------------------------------------------------
 -- BLOG
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `Blog` (
+CREATE TABLE `Blog` (
   `id`               INT AUTO_INCREMENT PRIMARY KEY,
   `title`            VARCHAR(255) NOT NULL UNIQUE,
   `short_description` VARCHAR(255) NULL,
@@ -320,15 +331,14 @@ CREATE TABLE IF NOT EXISTS `Blog` (
   `approved_by_id`   INT NULL,
   `created_at`       DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-  FOREIGN KEY (`authorId`)       REFERENCES `User`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`authorId`) REFERENCES `User`(`id`) ON DELETE SET NULL,
   FOREIGN KEY (`approved_by_id`) REFERENCES `User`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- CONTACT US (business inquiry)
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ContactUs` (
+CREATE TABLE `ContactUs` (
   `id`                  INT AUTO_INCREMENT PRIMARY KEY,
   `business_name`       VARCHAR(255) NOT NULL,
   `email`               VARCHAR(255) NOT NULL UNIQUE,
@@ -342,77 +352,75 @@ CREATE TABLE IF NOT EXISTS `ContactUs` (
 
 -- -------------------------------------------------
 -- OPTIONAL: many-to-many tables for Event ↔ Add-ons
--- (Prisma creates implicit junction tables; we add them explicitly
---  so the schema matches 1-to-1 with the Prisma model)
 -- -------------------------------------------------
-CREATE TABLE IF NOT EXISTS `EventMultimedia` (
+CREATE TABLE `EventMultimedia` (
   `eventId`      INT NOT NULL,
   `multimediaId` INT NOT NULL,
-  PRIMARY KEY (`eventId`,`multimediaId`),
-  FOREIGN KEY (`eventId`)      REFERENCES `Event`(`id`)       ON DELETE CASCADE,
+  PRIMARY KEY (`eventId`, `multimediaId`),
+  FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`multimediaId`) REFERENCES `Multimedia`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `EventMusical` (
+CREATE TABLE `EventMusical` (
   `eventId`   INT NOT NULL,
   `musicalId` INT NOT NULL,
-  PRIMARY KEY (`eventId`,`musicalId`),
-  FOREIGN KEY (`eventId`)   REFERENCES `Event`(`id`)   ON DELETE CASCADE,
+  PRIMARY KEY (`eventId`, `musicalId`),
+  FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`musicalId`) REFERENCES `Musical`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `EventLuxury` (
+CREATE TABLE `EventLuxury` (
   `eventId`  INT NOT NULL,
   `luxuryId` INT NOT NULL,
-  PRIMARY KEY (`eventId`,`luxuryId`),
-  FOREIGN KEY (`eventId`)  REFERENCES `Event`(`id`)  ON DELETE CASCADE,
+  PRIMARY KEY (`eventId`, `luxuryId`),
+  FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`luxuryId`) REFERENCES `Luxury`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `EventEntertainment` (
+CREATE TABLE `EventEntertainment` (
   `eventId`        INT NOT NULL,
   `entertainmentId` INT NOT NULL,
-  PRIMARY KEY (`eventId`,`entertainmentId`),
-  FOREIGN KEY (`eventId`)        REFERENCES `Event`(`id`)        ON DELETE CASCADE,
+  PRIMARY KEY (`eventId`, `entertainmentId`),
+  FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`entertainmentId`) REFERENCES `Entertainment`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `EventMeeting` (
+CREATE TABLE `EventMeeting` (
   `eventId`   INT NOT NULL,
   `meetingId` INT NOT NULL,
-  PRIMARY KEY (`eventId`,`meetingId`),
-  FOREIGN KEY (`eventId`)   REFERENCES `Event`(`id`)   ON DELETE CASCADE,
+  PRIMARY KEY (`eventId`, `meetingId`),
+  FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`meetingId`) REFERENCES `Meeting`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `EventBeautyDecor` (
+CREATE TABLE `EventBeautyDecor` (
   `eventId`       INT NOT NULL,
   `beautyDecorId` INT NOT NULL,
-  PRIMARY KEY (`eventId`,`beautyDecorId`),
-  FOREIGN KEY (`eventId`)       REFERENCES `Event`(`id`)       ON DELETE CASCADE,
+  PRIMARY KEY (`eventId`, `beautyDecorId`),
+  FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`beautyDecorId`) REFERENCES `BeautyDecor`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `EventAdventure` (
+CREATE TABLE `EventAdventure` (
   `eventId`     INT NOT NULL,
   `adventureId` INT NOT NULL,
-  PRIMARY KEY (`eventId`,`adventureId`),
-  FOREIGN KEY (`eventId`)     REFERENCES `Event`(`id`)     ON DELETE CASCADE,
+  PRIMARY KEY (`eventId`, `adventureId`),
+  FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`adventureId`) REFERENCES `Adventure`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `EventPartyPalace` (
+CREATE TABLE `EventPartyPalace` (
   `eventId`       INT NOT NULL,
   `partyPalaceId` INT NOT NULL,
-  PRIMARY KEY (`eventId`,`partyPalaceId`),
-  FOREIGN KEY (`eventId`)       REFERENCES `Event`(`id`)       ON DELETE CASCADE,
+  PRIMARY KEY (`eventId`, `partyPalaceId`),
+  FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`partyPalaceId`) REFERENCES `PartyPalace`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE IF NOT EXISTS `EventCateringTent` (
+CREATE TABLE `EventCateringTent` (
   `eventId`       INT NOT NULL,
   `cateringTentId` INT NOT NULL,
-  PRIMARY KEY (`eventId`,`cateringTentId`),
-  FOREIGN KEY (`eventId`)       REFERENCES `Event`(`id`)       ON DELETE CASCADE,
+  PRIMARY KEY (`eventId`, `cateringTentId`),
+  FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`cateringTentId`) REFERENCES `CateringTent`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
