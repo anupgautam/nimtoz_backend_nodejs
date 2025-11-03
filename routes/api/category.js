@@ -30,7 +30,7 @@ router.route('/')
 
 router.route('/:id')
     .get(getCategoryById)
-    .put(upload.single('category_icon'), authenticateToken, authorizeRole('ADMIN'), updateCategory)
+    .patch(upload.single('category_icon'), authenticateToken, authorizeRole('ADMIN'), updateCategory)
     .delete(authenticateToken, authorizeRole('ADMIN'), deleteCategoryById)
 
 export default router;

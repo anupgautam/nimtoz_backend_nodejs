@@ -40,6 +40,7 @@ const sendOTPSMS = async (phone, otp) => {
     try {
         const url = `https://samayasms.com.np/smsapi/index?key=${apiKey}&contacts=${phone}&senderid=${senderId}&msg=${message}&responsetype=json`;
         const response = await axios.get(url);
+        console.log(url);
         return response.data;
     } catch (error) {
         console.error("Error sending SMS:", error.message);

@@ -10,7 +10,7 @@ router.route('/')
 
 router.route("/:id")
     .get(authenticateToken, authorizeRole('ADMIN'),getEventTypeById)
-    .put(authenticateToken, authorizeRole('ADMIN'),updateEventType)
+    .patch(authenticateToken, authorizeRole('ADMIN'),updateEventType)
     .delete(authenticateToken, authorizeRole('ADMIN'),deleteEventTypeById)
 
 export default router;

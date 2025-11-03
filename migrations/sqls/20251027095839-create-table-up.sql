@@ -122,6 +122,21 @@ CREATE TABLE `ProductImage` (
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
+-- Sub Product
+-- -------------------------------------------------
+-- CREATE TABLE `SubProduct` (
+--   `id`            INT AUTO_INCREMENT PRIMARY KEY,
+--   `title` VARCHAR(255) NOT NULL,
+--   `price`         INT NOT NULL,
+--   `offerPrice`    INT NULL,
+--   `description`   TEXT NULL,
+--   `productId`     INT NULL,
+--   `created_at`    DATETIME DEFAULT CURRENT_TIMESTAMP,
+--   `updated_at`    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
+-- ) ENGINE=InnoDB;
+
+-- -------------------------------------------------
 -- MULTIMEDIA (Photography / Videography)
 -- -------------------------------------------------
 CREATE TABLE `Multimedia` (
@@ -240,6 +255,8 @@ CREATE TABLE `PartyPalace` (
   `updated_at`       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+
 
 -- -------------------------------------------------
 -- CATERING / TENT
