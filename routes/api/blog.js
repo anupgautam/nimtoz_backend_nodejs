@@ -28,7 +28,7 @@ router.route('/')
 
 router.route('/:id')
     .get(getBlogById)
-    .put(upload.single('image'), authenticateToken, authorizeRole('ADMIN'), updateBlog)
+    .patch(upload.single('image'), authenticateToken, authorizeRole('ADMIN'), updateBlog)
     .delete(authenticateToken, authorizeRole('ADMIN'), deleteBlogById)
 
 export default router;

@@ -2,6 +2,7 @@
 import { categorySchema } from "../utils/validationSchema.js";
 import { z } from "zod";
 import db from "../config/prisma.js";
+import { BASE_URL } from "../baseUrl.js";
 
 //! Get All Categories (with search, pagination, and product titles)
 const getAllCategories = async (req, res) => {
@@ -52,7 +53,9 @@ const getAllCategories = async (req, res) => {
             if (!map.has(catId)) {
                 const { product_id, product_title, ...cat } = row;
                 map.set(catId, {
-                    ...cat,
+                    id:cat.id,
+                    category_name: cat.category_name,
+                    category_icon:BASE_URL+ cat.category_icon,
                     products: [],
                 });
             }
@@ -91,6 +94,9 @@ const getCategoryById = async (req, res) => {
         if (rows.length === 0) {
             return res.status(404).json({ success: false, error: `Category ${id} doesn't exist` });
         }
+
+        category.category_icon = category.category_icon ? BASE_URL + category.category_icon : null;
+
 
         res.json({ success: true, category: rows[0] });
     } catch (error) {
@@ -173,31 +179,35 @@ const createCategory = async (req, res) => {
 //! Update Category
 const updateCategory = async (req, res) => {
     const { id } = req.params;
+    console.log('id',id)
     try {
         const validatedData = categorySchema.parse(req.body);
-        const categoryIconPath = req.file
-            ? `/uploads/categories/${req.file.filename}`
-            : validatedData.category_icon || null;
 
         const updates = [];
         const values = [];
 
+        // Update category name if provided
         if (validatedData.category_name) {
             updates.push("category_name = ?");
             values.push(validatedData.category_name);
         }
-        if (categoryIconPath !== null) {
+
+        // Update category icon only if a new file is uploaded
+        if (req.file) {
             updates.push("category_icon = ?");
-            values.push(categoryIconPath);
+            values.push(`/uploads/categories/${req.file.filename}`);
         }
 
+        // Always update timestamp
         updates.push("updated_at = NOW()");
         values.push(id);
 
-        if (updates.length === 1) {
+        // If no fields to update
+        if (updates.length <= 1) {
             return res.status(400).json({ success: false, error: "No fields to update" });
         }
 
+        // Run update query
         const [result] = await db.execute(
             `UPDATE Category SET ${updates.join(", ")} WHERE id = ?`,
             values
@@ -207,12 +217,19 @@ const updateCategory = async (req, res) => {
             return res.status(404).json({ success: false, error: "Category not found" });
         }
 
-        const [updatedCategory] = await db.execute(`SELECT * FROM Category WHERE id = ?`, [id]);
+        // Fetch updated category
+        const [updatedRows] = await db.execute(`SELECT * FROM Category WHERE id = ?`, [id]);
+        const updatedCategory = updatedRows[0];
+
+        // Apply BASE_URL for image
+        updatedCategory.category_icon = updatedCategory.category_icon
+            ? BASE_URL + updatedCategory.category_icon
+            : null;
 
         res.json({
             success: true,
             message: "Category Updated",
-            category: updatedCategory[0],
+            category: updatedCategory,
         });
     } catch (error) {
         if (error instanceof z.ZodError) {

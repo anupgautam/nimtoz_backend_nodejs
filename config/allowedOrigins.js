@@ -5,4 +5,5 @@ export const allowedOrigins = [
     'http://192.168.1.135:7000',
     'http://nimtoz.com',
     'http://www.nimtoz.com',
+    'http://192.168.1.222:1000',
 ];
