@@ -28,6 +28,7 @@ import eventType from "./routes/api/eventType.js";
 import forgotPassword from "./routes/api/forgotPassword.js";
 import resetPassword from "./routes/api/resetPassword.js";
 import stats from "./routes/api/statistics.js";
+import mybookings from "./routes/api/mybookings.js";
 
 //! Controllers (direct endpoints)
 import { countCategory, getCategoryByProductId } from "./controllers/categoriesController.js";
@@ -91,6 +92,7 @@ app.use("/productimages/:id", getProductImagesById);
 app.use("/productcategoryid/:id", getCategoryByProductId);
 app.use("/product/:id", updateProduct);
 app.use("/stat-blogs", getStatBlogs);
+app.use("/mybookings", mybookings);
 
 //! Base route (homepage showing all endpoints)
 app.get("/", (req, res) => {
@@ -116,6 +118,8 @@ app.get("/", (req, res) => {
     { path: "/homepageproducts", desc: "Homepage featured products" },
     { path: "/bookingstats", desc: "Booking statistics" },
     { path: "/stat-blogs", desc: "Blog statistics" },
+    { path: "/mybookings", desc: "User's bookings by ID" },
+
   ];
 
   let html = `

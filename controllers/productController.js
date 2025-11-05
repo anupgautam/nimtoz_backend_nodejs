@@ -9,10 +9,6 @@ const query = async (sql, params = []) => {
     const [rows] = await db.execute(sql, params);
     return rows;
 };
-
-// Build full URL from relative path
-
-// utils/buildFileUrl.js or in your controller
 // utils/buildFileUrl.js
 export const buildFileUrl = (filePath) => {
   if (!filePath) return null;
@@ -840,10 +836,6 @@ const updateProduct = async (req, res) => {
     res.status(400).json({ success: false, error: error.message });
   }
 };
-
-
-
-
 export {
     getAllProducts,
     getProductById,

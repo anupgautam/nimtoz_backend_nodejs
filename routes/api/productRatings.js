@@ -1,11 +1,12 @@
 import express from 'express';
-import { addOrUpdateRating, deleteRating, getProductOverallRating, getProductRatings } from "../../controllers/productRatingController.js";
+import { addOrUpdateRating, deleteRating, getProductOverallRating, getProductRatings,getAllRatings } from "../../controllers/productRatingController.js";
 import { authenticateToken, authorizeRole } from '../../middleware/authentication.js';
 
 
 const router = express.Router();
 
-
+router.route('/all')
+  .get(authenticateToken, authorizeRole('ADMIN'), getAllRatings);
 
 router.route('/')
     .get(getProductOverallRating)
