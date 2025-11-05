@@ -276,34 +276,56 @@ CREATE TABLE `CateringTent` (
 -- -------------------------------------------------
 -- EVENT
 -- -------------------------------------------------
+-- CREATE TABLE `Event` (
+--   `id`            INT AUTO_INCREMENT PRIMARY KEY,
+--   `start_date`    DATETIME NOT NULL,
+--   `end_date`      DATETIME NOT NULL,
+--   `start_time`    DATETIME NULL,
+--   `end_time`      DATETIME NULL,
+--   `is_approved`   BOOLEAN DEFAULT FALSE,
+--   `is_rejected`   BOOLEAN DEFAULT FALSE,
+--   `userId`        INT NOT NULL,
+--   `productId`     INT NOT NULL,
+--   `approved_by_id` INT NULL,
+--   `created_at`    DATETIME DEFAULT CURRENT_TIMESTAMP,
+--   `updated_at`    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--   FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT,
+--   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE,
+--   FOREIGN KEY (`approved_by_id`) REFERENCES `User`(`id`) ON DELETE SET NULL
+-- ) ENGINE=InnoDB;
+
 CREATE TABLE `Event` (
-  `id`            INT AUTO_INCREMENT PRIMARY KEY,
-  `start_date`    DATETIME NOT NULL,
-  `end_date`      DATETIME NOT NULL,
-  `start_time`    DATETIME NULL,
-  `end_time`      DATETIME NULL,
-  `is_approved`   BOOLEAN DEFAULT FALSE,
-  `is_rejected`   BOOLEAN DEFAULT FALSE,
-  `userId`        INT NOT NULL,
-  `productId`     INT NOT NULL,
+  `id`             INT AUTO_INCREMENT PRIMARY KEY,
+  `start_date`     DATETIME NOT NULL,
+  `end_date`       DATETIME NOT NULL,
+  `start_time`     DATETIME NULL,
+  `end_time`       DATETIME NULL,
+  `is_approved`    BOOLEAN DEFAULT FALSE,
+  `total_price`    DECIMAL(10,2) DEFAULT 0,
+  `userId`         INT NOT NULL,
+  `productId`      INT NOT NULL,
+  `eventTypeId`    INT NOT NULL,
   `approved_by_id` INT NULL,
-  `created_at`    DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `updated_at`    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_at`     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
   FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT,
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`approved_by_id`) REFERENCES `User`(`id`) ON DELETE SET NULL
+  FOREIGN KEY (`approved_by_id`) REFERENCES `User`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`eventTypeId`) REFERENCES `EventType`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
+
 
 -- -------------------------------------------------
 -- EVENT ↔ EVENTTYPE (junction)
 -- -------------------------------------------------
-CREATE TABLE `EventEventType` (
-  `eventId`     INT NOT NULL,
-  `eventTypeId` INT NOT NULL,
-  PRIMARY KEY (`eventId`, `eventTypeId`),
-  FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`eventTypeId`) REFERENCES `EventType`(`id`) ON DELETE RESTRICT
-) ENGINE=InnoDB;
+-- CREATE TABLE `EventEventType` (
+--   `eventId`     INT NOT NULL,
+--   `eventTypeId` INT NOT NULL,
+--   PRIMARY KEY (`eventId`, `eventTypeId`),
+--   FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE,
+--   FOREIGN KEY (`eventTypeId`) REFERENCES `EventType`(`id`) ON DELETE RESTRICT
+-- ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
 -- PRODUCT RATING

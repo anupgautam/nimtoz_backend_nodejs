@@ -101,6 +101,54 @@ const getProductRatings = async (req, res) => {
   }
 };
 
+//! Get All Ratings (Admin / Super Admin only)
+const getAllRatings = async (req, res) => {
+  try {
+    // Optional: check role if not already handled by middleware
+    if (!'ADMIN'.includes(req.user?.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Admins only.",
+      });
+    }
+
+    const ratings = await query(
+      `SELECT 
+          pr.id AS rating_id,
+          pr.userId,
+          u.email AS user_email,
+          pr.productId,
+          p.title AS product_title,
+          pr.rating,
+          pr.review,
+          pr.created_at,
+          pr.updated_at
+       FROM ProductRating pr
+       JOIN User u ON pr.userId = u.id
+       JOIN Product p ON pr.productId = p.id
+       ORDER BY pr.created_at DESC`
+    );
+
+    if (!ratings.length) {
+      return res.status(200).json({
+        success: true,
+        message: "No ratings found.",
+        ratings: [],
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      total_ratings: ratings.length,
+      ratings,
+    });
+  } catch (error) {
+    console.error("getAllRatings error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+
 //! Get Product Overall Rating (All Products)
 const getProductOverallRating = async (req, res) => {
   try {
@@ -143,4 +191,5 @@ export {
   getProductRatings,
   getProductOverallRating,
   deleteRating,
+  getAllRatings
 };
