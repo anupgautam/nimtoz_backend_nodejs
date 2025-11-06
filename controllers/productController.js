@@ -335,7 +335,7 @@ const getHomePageProducts = async (req, res) => {
                 p.id, p.title, p.description, p.short_description, p.address, p.is_active,
                 d.id as district_id, d.district_name,
                 c.id as category_id, c.category_name,
-                v.id as business_id, v.venue_name,
+                v.id as business_id, v.venue_name, v.venue_address, v.contact_person, v.phone_number, v.email, v.pan_vat_number,
                 pi.id as img_id, pi.url,
                 mm.price as mm_price, mm.offerPrice as mm_offer, mm.multimedia_name,
                 en.price as en_price, en.offerPrice as en_offer, en.entertainment_name,
@@ -378,7 +378,15 @@ const getHomePageProducts = async (req, res) => {
                     is_active: Boolean(row.is_active),
                     District: row.district_id ? { id: row.district_id, district_name: row.district_name } : null,
                     Category: row.category_id ? { id: row.category_id, category_name: row.category_name } : null,
-                    Business: row.business_id ? { id: row.business_id, venue_name: row.venue_name } : null,
+                    Business: row.business_id ? {
+                        id: row.business_id,
+                        venue_name: row.venue_name,
+                        venue_address: row.venue_address,
+                        contact_person: row.contact_person,
+                        phone_number: row.phone_number,
+                        email: row.email,
+                        pan_vat_number: row.pan_vat_number
+                    } : null,
                     product_image: [],
                     multimedia: [],
                     entertainment: [],
@@ -442,17 +450,19 @@ const getHomePageProducts = async (req, res) => {
 };
 
 
+
 //! Get Product by ID
 const getProductById = async (req, res) => {
   const { id } = req.params;
 
   try {
+    // Fetch main product + venue info
     const [productRows] = await db.execute(
       `SELECT 
         p.*, 
         d.id AS dist_id, d.district_name,
         c.id AS category_id, c.category_name,
-        v.id AS business_id, v.venue_name
+        v.id AS business_id, v.venue_name, v.venue_address, v.contact_person, v.phone_number, v.email, v.pan_vat_number
        FROM Product p
        LEFT JOIN District d ON p.districtId = d.id
        LEFT JOIN Category c ON p.category_id = c.id
@@ -465,18 +475,30 @@ const getProductById = async (req, res) => {
       return res.status(404).json({ success: false, error: `Product ${id} doesn't exist.` });
     }
 
+    const row = productRows[0];
+
     const product = {
-      id: productRows[0].id,
-      title: productRows[0].title,
-      description: productRows[0].description,
-      short_description: productRows[0].short_description,
-      address: productRows[0].address,
-      is_active: Boolean(productRows[0].is_active),
-      created_at: productRows[0].created_at,
-      updated_at: productRows[0].updated_at,
-      District: productRows[0].dist_id ? { id: productRows[0].dist_id, district_name: productRows[0].district_name } : null,
-      Category: productRows[0].category_id ? { id: productRows[0].category_id, category_name: productRows[0].category_name } : null,
-      Business: productRows[0].business_id ? { id: productRows[0].business_id, venue_name: productRows[0].venue_name } : null,
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      short_description: row.short_description,
+      address: row.address,
+      is_active: Boolean(row.is_active),
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      District: row.dist_id ? { id: row.dist_id, district_name: row.district_name } : null,
+      Category: row.category_id ? { id: row.category_id, category_name: row.category_name } : null,
+      Business: row.business_id
+        ? {
+            id: row.business_id,
+            venue_name: row.venue_name,
+            venue_address: row.venue_address,
+            contact_person: row.contact_person,
+            phone_number: row.phone_number,
+            email: row.email,
+            pan_vat_number: row.pan_vat_number,
+          }
+        : null,
       product_image: [],
       partypalace: [],
       musical: [],
@@ -489,13 +511,14 @@ const getProductById = async (req, res) => {
       meeting: [],
     };
 
+    // Fetch product images
     const [images] = await db.execute(
       `SELECT id, url FROM ProductImage WHERE productId = ?`,
       [id]
     );
-
     product.product_image = images.map(img => ({ id: img.id, url: buildFileUrl(img.url) }));
 
+    // Helper to fetch services
     const fetchService = async (table, nameCol, alias) => {
       const [rows] = await db.execute(
         `SELECT id, ${nameCol} AS name, price, offerPrice, description 
@@ -534,6 +557,7 @@ const getProductById = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
 
 
 //! Get Product Images by ID

@@ -72,6 +72,9 @@ async function getDashboardBookingStats() {
 }
 
 //! Get All Bookings (with search & pagination)
+// ============================================
+// FIXED getAllBookings Controller
+// ============================================
 const getAllBookings = async (req, res) => {
   try {
     const { search, page = 1, limit = 10 } = req.query;
@@ -100,7 +103,7 @@ const getAllBookings = async (req, res) => {
     const [countResult] = await db.execute(countQuery, params);
     const totalCount = countResult[0].total;
 
-    // Fetch bookings along with product services & EventType
+    // Fetch bookings with JUNCTION TABLE joins to get only selected services
     const bookingsQuery = `
       SELECT 
         e.id, e.start_date, e.end_date, e.start_time, e.end_time, e.is_approved, e.total_price,
@@ -122,15 +125,35 @@ const getAllBookings = async (req, res) => {
       JOIN Product p ON e.productId = p.id
       JOIN Category c ON p.category_id = c.id
       JOIN EventType et ON e.eventTypeId = et.id
-      LEFT JOIN Multimedia mm ON mm.productId = p.id
-      LEFT JOIN Musical mus ON mus.productId = p.id
-      LEFT JOIN Luxury lux ON lux.productId = p.id
-      LEFT JOIN Entertainment ent ON ent.productId = p.id
-      LEFT JOIN Meeting m ON m.productId = p.id
-      LEFT JOIN BeautyDecor bd ON bd.productId = p.id
-      LEFT JOIN Adventure adv ON adv.productId = p.id
-      LEFT JOIN PartyPalace pp ON pp.productId = p.id
-      LEFT JOIN CateringTent ct ON ct.productId = p.id
+      
+      -- Join through junction tables to get ONLY selected services
+      LEFT JOIN EventMultimedia emm ON emm.eventId = e.id
+      LEFT JOIN Multimedia mm ON mm.id = emm.multimediaId
+      
+      LEFT JOIN EventMusical emus ON emus.eventId = e.id
+      LEFT JOIN Musical mus ON mus.id = emus.musicalId
+      
+      LEFT JOIN EventLuxury elux ON elux.eventId = e.id
+      LEFT JOIN Luxury lux ON lux.id = elux.luxuryId
+      
+      LEFT JOIN EventEntertainment eent ON eent.eventId = e.id
+      LEFT JOIN Entertainment ent ON ent.id = eent.entertainmentId
+      
+      LEFT JOIN EventMeeting em ON em.eventId = e.id
+      LEFT JOIN Meeting m ON m.id = em.meetingId
+      
+      LEFT JOIN EventBeautyDecor ebd ON ebd.eventId = e.id
+      LEFT JOIN BeautyDecor bd ON bd.id = ebd.beautyDecorId
+      
+      LEFT JOIN EventAdventure eadv ON eadv.eventId = e.id
+      LEFT JOIN Adventure adv ON adv.id = eadv.adventureId
+      
+      LEFT JOIN EventPartyPalace epp ON epp.eventId = e.id
+      LEFT JOIN PartyPalace pp ON pp.id = epp.partyPalaceId
+      
+      LEFT JOIN EventCateringTent ect ON ect.eventId = e.id
+      LEFT JOIN CateringTent ct ON ct.id = ect.cateringTentId
+      
       ${whereClause}
       ORDER BY e.updated_at DESC
       LIMIT ? OFFSET ?
@@ -138,7 +161,7 @@ const getAllBookings = async (req, res) => {
 
     const [bookings] = await db.execute(bookingsQuery, [...params, take, offset]);
 
-    // Group services under each booking
+    // Group services under each booking (remove duplicates)
     const groupedBookings = [];
     const map = new Map();
 
@@ -185,15 +208,85 @@ const getAllBookings = async (req, res) => {
 
       const booking = map.get(key);
 
-      if (row.mm_id) booking.services.Multimedia.push({ id: row.mm_id, name: row.multimedia_name, price: row.mm_price, offerPrice: row.mm_offerPrice });
-      if (row.mus_id) booking.services.Musical.push({ id: row.mus_id, name: row.instrument_name, price: row.mus_price, offerPrice: row.mus_offerPrice });
-      if (row.lux_id) booking.services.Luxury.push({ id: row.lux_id, name: row.luxury_name, price: row.lux_price, offerPrice: row.lux_offerPrice });
-      if (row.ent_id) booking.services.Entertainment.push({ id: row.ent_id, name: row.entertainment_name, price: row.ent_price, offerPrice: row.ent_offerPrice });
-      if (row.m_id) booking.services.Meeting.push({ id: row.m_id, name: row.meeting_name, price: row.m_price, offerPrice: row.m_offerPrice });
-      if (row.bd_id) booking.services.BeautyDecor.push({ id: row.bd_id, name: row.beauty_name, price: row.bd_price, offerPrice: row.bd_offerPrice });
-      if (row.adv_id) booking.services.Adventure.push({ id: row.adv_id, name: row.adventure_name, price: row.adv_price, offerPrice: row.adv_offerPrice });
-      if (row.pp_id) booking.services.PartyPalace.push({ id: row.pp_id, name: row.partypalace_name, price: row.pp_price, offerPrice: row.pp_offerPrice });
-      if (row.ct_id) booking.services.CateringTent.push({ id: row.ct_id, name: row.catering_name, price: row.ct_price, offerPrice: row.ct_offerPrice });
+      // Use Set to avoid duplicate service IDs
+      const addUniqueService = (serviceArray, serviceData) => {
+        if (serviceData.id && !serviceArray.find(s => s.id === serviceData.id)) {
+          serviceArray.push(serviceData);
+        }
+      };
+
+      if (row.mm_id) {
+        addUniqueService(booking.services.Multimedia, {
+          id: row.mm_id,
+          name: row.multimedia_name,
+          price: row.mm_price,
+          offerPrice: row.mm_offerPrice
+        });
+      }
+      if (row.mus_id) {
+        addUniqueService(booking.services.Musical, {
+          id: row.mus_id,
+          name: row.instrument_name,
+          price: row.mus_price,
+          offerPrice: row.mus_offerPrice
+        });
+      }
+      if (row.lux_id) {
+        addUniqueService(booking.services.Luxury, {
+          id: row.lux_id,
+          name: row.luxury_name,
+          price: row.lux_price,
+          offerPrice: row.lux_offerPrice
+        });
+      }
+      if (row.ent_id) {
+        addUniqueService(booking.services.Entertainment, {
+          id: row.ent_id,
+          name: row.entertainment_name,
+          price: row.ent_price,
+          offerPrice: row.ent_offerPrice
+        });
+      }
+      if (row.m_id) {
+        addUniqueService(booking.services.Meeting, {
+          id: row.m_id,
+          name: row.meeting_name,
+          price: row.m_price,
+          offerPrice: row.m_offerPrice
+        });
+      }
+      if (row.bd_id) {
+        addUniqueService(booking.services.BeautyDecor, {
+          id: row.bd_id,
+          name: row.beauty_name,
+          price: row.bd_price,
+          offerPrice: row.bd_offerPrice
+        });
+      }
+      if (row.adv_id) {
+        addUniqueService(booking.services.Adventure, {
+          id: row.adv_id,
+          name: row.adventure_name,
+          price: row.adv_price,
+          offerPrice: row.adv_offerPrice
+        });
+      }
+      if (row.pp_id) {
+        addUniqueService(booking.services.PartyPalace, {
+          id: row.pp_id,
+          name: row.partypalace_name,
+          price: row.pp_price,
+          offerPrice: row.pp_offerPrice
+        });
+      }
+      if (row.ct_id) {
+        addUniqueService(booking.services.CateringTent, {
+          id: row.ct_id,
+          name: row.catering_name,
+          price: row.ct_price,
+          offerPrice: row.ct_offerPrice
+        });
+      }
     });
 
     map.forEach((val) => groupedBookings.push(val));
@@ -210,6 +303,32 @@ const getAllBookings = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+
+// ============================================
+// UPDATED createBooking - NO CHANGES NEEDED
+// ============================================
+// Your createBooking is already correct!
+// Just make sure frontend sends data like this:
+
+/*
+Frontend should send:
+{
+  "start_date": "2025-11-12",
+  "end_date": "2025-11-12",
+  "userId": 1,
+  "productId": 32,
+  "eventTypeId": 1,
+  "services": {
+    "BeautyDecor": [11]  // Array of selected service IDs
+  }
+}
+
+NOT like this:
+{
+  "Hall": ["11"]  // Wrong - this is what your frontend currently sends
+}
+*/
 
 //! Get Bookings for Logged-in User (My Bookings)
 const getBookingByUserId = async (req, res) => {
@@ -230,6 +349,7 @@ const getBookingByUserId = async (req, res) => {
     );
     const totalCount = countResult[0].total;
 
+    // Fetch bookings with junction tables to get only selected services
     const [bookings] = await db.execute(
       `
       SELECT 
@@ -250,15 +370,34 @@ const getBookingByUserId = async (req, res) => {
       JOIN Product p ON e.productId = p.id
       JOIN Category c ON p.category_id = c.id
       JOIN EventType et ON e.eventTypeId = et.id
-      LEFT JOIN Multimedia mm ON mm.productId = p.id
-      LEFT JOIN Musical mus ON mus.productId = p.id
-      LEFT JOIN Luxury lux ON lux.productId = p.id
-      LEFT JOIN Entertainment ent ON ent.productId = p.id
-      LEFT JOIN Meeting m ON m.productId = p.id
-      LEFT JOIN BeautyDecor bd ON bd.productId = p.id
-      LEFT JOIN Adventure adv ON adv.productId = p.id
-      LEFT JOIN PartyPalace pp ON pp.productId = p.id
-      LEFT JOIN CateringTent ct ON ct.productId = p.id
+      
+      LEFT JOIN EventMultimedia emm ON emm.eventId = e.id
+      LEFT JOIN Multimedia mm ON mm.id = emm.multimediaId
+      
+      LEFT JOIN EventMusical emus ON emus.eventId = e.id
+      LEFT JOIN Musical mus ON mus.id = emus.musicalId
+      
+      LEFT JOIN EventLuxury elux ON elux.eventId = e.id
+      LEFT JOIN Luxury lux ON lux.id = elux.luxuryId
+      
+      LEFT JOIN EventEntertainment eent ON eent.eventId = e.id
+      LEFT JOIN Entertainment ent ON ent.id = eent.entertainmentId
+      
+      LEFT JOIN EventMeeting em ON em.eventId = e.id
+      LEFT JOIN Meeting m ON m.id = em.meetingId
+      
+      LEFT JOIN EventBeautyDecor ebd ON ebd.eventId = e.id
+      LEFT JOIN BeautyDecor bd ON bd.id = ebd.beautyDecorId
+      
+      LEFT JOIN EventAdventure eadv ON eadv.eventId = e.id
+      LEFT JOIN Adventure adv ON adv.id = eadv.adventureId
+      
+      LEFT JOIN EventPartyPalace epp ON epp.eventId = e.id
+      LEFT JOIN PartyPalace pp ON pp.id = epp.partyPalaceId
+      
+      LEFT JOIN EventCateringTent ect ON ect.eventId = e.id
+      LEFT JOIN CateringTent ct ON ct.id = ect.cateringTentId
+      
       WHERE e.userId = ?
       ORDER BY e.updated_at DESC
       LIMIT ? OFFSET ?
@@ -266,6 +405,7 @@ const getBookingByUserId = async (req, res) => {
       [userId, take, offset]
     );
 
+    // Group services under each booking (remove duplicates)
     const groupedBookings = [];
     const map = new Map();
 
@@ -306,15 +446,21 @@ const getBookingByUserId = async (req, res) => {
 
       const booking = map.get(key);
 
-      if (row.mm_id) booking.services.Multimedia.push({ id: row.mm_id, name: row.multimedia_name, price: row.mm_price, offerPrice: row.mm_offerPrice });
-      if (row.mus_id) booking.services.Musical.push({ id: row.mus_id, name: row.instrument_name, price: row.mus_price, offerPrice: row.mus_offerPrice });
-      if (row.lux_id) booking.services.Luxury.push({ id: row.lux_id, name: row.luxury_name, price: row.lux_price, offerPrice: row.lux_offerPrice });
-      if (row.ent_id) booking.services.Entertainment.push({ id: row.ent_id, name: row.entertainment_name, price: row.ent_price, offerPrice: row.ent_offerPrice });
-      if (row.m_id) booking.services.Meeting.push({ id: row.m_id, name: row.meeting_name, price: row.m_price, offerPrice: row.m_offerPrice });
-      if (row.bd_id) booking.services.BeautyDecor.push({ id: row.bd_id, name: row.beauty_name, price: row.bd_price, offerPrice: row.bd_offerPrice });
-      if (row.adv_id) booking.services.Adventure.push({ id: row.adv_id, name: row.adventure_name, price: row.adv_price, offerPrice: row.adv_offerPrice });
-      if (row.pp_id) booking.services.PartyPalace.push({ id: row.pp_id, name: row.partypalace_name, price: row.pp_price, offerPrice: row.pp_offerPrice });
-      if (row.ct_id) booking.services.CateringTent.push({ id: row.ct_id, name: row.catering_name, price: row.ct_price, offerPrice: row.ct_offerPrice });
+      const addUniqueService = (serviceArray, serviceData) => {
+        if (serviceData.id && !serviceArray.find((s) => s.id === serviceData.id)) {
+          serviceArray.push(serviceData);
+        }
+      };
+
+      if (row.mm_id) addUniqueService(booking.services.Multimedia, { id: row.mm_id, name: row.multimedia_name, price: row.mm_price, offerPrice: row.mm_offerPrice });
+      if (row.mus_id) addUniqueService(booking.services.Musical, { id: row.mus_id, name: row.instrument_name, price: row.mus_price, offerPrice: row.mus_offerPrice });
+      if (row.lux_id) addUniqueService(booking.services.Luxury, { id: row.lux_id, name: row.luxury_name, price: row.lux_price, offerPrice: row.lux_offerPrice });
+      if (row.ent_id) addUniqueService(booking.services.Entertainment, { id: row.ent_id, name: row.entertainment_name, price: row.ent_price, offerPrice: row.ent_offerPrice });
+      if (row.m_id) addUniqueService(booking.services.Meeting, { id: row.m_id, name: row.meeting_name, price: row.m_price, offerPrice: row.m_offerPrice });
+      if (row.bd_id) addUniqueService(booking.services.BeautyDecor, { id: row.bd_id, name: row.beauty_name, price: row.bd_price, offerPrice: row.bd_offerPrice });
+      if (row.adv_id) addUniqueService(booking.services.Adventure, { id: row.adv_id, name: row.adventure_name, price: row.adv_price, offerPrice: row.adv_offerPrice });
+      if (row.pp_id) addUniqueService(booking.services.PartyPalace, { id: row.pp_id, name: row.partypalace_name, price: row.pp_price, offerPrice: row.pp_offerPrice });
+      if (row.ct_id) addUniqueService(booking.services.CateringTent, { id: row.ct_id, name: row.catering_name, price: row.ct_price, offerPrice: row.ct_offerPrice });
     });
 
     map.forEach((val) => groupedBookings.push(val));
@@ -331,6 +477,7 @@ const getBookingByUserId = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
 
 //! Dashboard Stats Endpoint
 const getBookingStats = async (req, res) => {
@@ -382,7 +529,17 @@ const deleteBookingById = async (req, res) => {
 
 //! Create Booking
 const createBooking = async (req, res) => {
-  const { start_date, end_date, start_time, end_time, userId, productId, eventTypeId, events } = req.body;
+  const {
+    start_date,
+    end_date,
+    start_time,
+    end_time,
+    userId,
+    productId,
+    eventTypeId,
+    events,
+    selectedServices = {}, // e.g., { "BeautyDecor": [11,12], "Musical": [3] }
+  } = req.body;
 
   try {
     const finalEventTypeId = eventTypeId || (events && events[0]?.id);
@@ -395,6 +552,7 @@ const createBooking = async (req, res) => {
     const combinedStartTime = combineDateAndTime(start_date, start_time);
     const combinedEndTime = combineDateAndTime(end_date, end_time);
 
+    // Verify product exists
     const [[product]] = await db.execute(
       `SELECT p.title, c.category_name 
        FROM Product p 
@@ -402,102 +560,119 @@ const createBooking = async (req, res) => {
        WHERE p.id = ?`,
       [productId]
     );
-    if (!product) return res.status(404).json({ success: false, error: "Product not found" });
+    if (!product)
+      return res.status(404).json({ success: false, error: "Product not found" });
 
-    // Check conflicts
+    // Conflict checks
     const [[approvedConflict]] = await db.execute(
       `SELECT 1 FROM Event WHERE productId=? AND is_approved=1 AND start_date<=? AND end_date>=?`,
       [productId, endDate, startDate]
     );
-    if (approvedConflict) return res.status(409).json({ success: false, message: "Approved event exists on this date" });
+    if (approvedConflict)
+      return res.status(409).json({ success: false, message: "An approved event already exists on this date." });
 
     const [[overlap]] = await db.execute(
       `SELECT 1 FROM Event WHERE productId=? AND is_approved=0 AND start_date<? AND end_date>?`,
       [productId, endDate, startDate]
     );
-    if (overlap) return res.status(409).json({ success: false, message: "Booking overlaps with existing request" });
+    if (overlap)
+      return res.status(409).json({ success: false, message: "Booking overlaps with an existing request." });
 
-    // Insert Event first
+    // Insert main Event
     const [eventResult] = await db.execute(
-      `INSERT INTO Event (start_date,end_date,start_time,end_time,userId,productId,eventTypeId,is_approved,created_at,updated_at)
+      `INSERT INTO Event 
+        (start_date, end_date, start_time, end_time, userId, productId, eventTypeId, is_approved, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [startDate, endDate, combinedStartTime, combinedEndTime, userId, productId, finalEventTypeId, false]
+      [startDate, endDate, combinedStartTime, combinedEndTime, userId, productId, finalEventTypeId, 0]
     );
     const eventId = eventResult.insertId;
 
-    // Service tables
+    // Service table mapping
     const serviceTables = [
-      { table: "Multimedia", column: "multimediaId" },
-      { table: "Musical", column: "musicalId" },
-      { table: "Luxury", column: "luxuryId" },
-      { table: "Entertainment", column: "entertainmentId" },
-      { table: "Meeting", column: "meetingId" },
-      { table: "BeautyDecor", column: "beautyDecorId" },
-      { table: "Adventure", column: "adventureId" },
-      { table: "PartyPalace", column: "partyPalaceId" },
-      { table: "CateringTent", column: "cateringTentId" }
+      { table: "Multimedia", column: "multimediaId", nameColumn: "multimedia_name" },
+      { table: "Musical", column: "musicalId", nameColumn: "instrument_name" },
+      { table: "Luxury", column: "luxuryId", nameColumn: "luxury_name" },
+      { table: "Entertainment", column: "entertainmentId", nameColumn: "entertainment_name" },
+      { table: "Meeting", column: "meetingId", nameColumn: "meeting_name" },
+      { table: "BeautyDecor", column: "beautyDecorId", nameColumn: "beauty_name" },
+      { table: "Adventure", column: "adventureId", nameColumn: "adventure_name" },
+      { table: "PartyPalace", column: "partyPalaceId", nameColumn: "partypalace_name" },
+      { table: "CateringTent", column: "cateringTentId", nameColumn: "catering_name" },
     ];
 
     let totalPrice = 0;
+    const servicesResult = {};
 
-    for (let { table, column } of serviceTables) {
-      const [services] = await db.execute(
-        `SELECT id, price, offerPrice FROM ${table} WHERE productId = ?`,
-        [productId]
-      );
+    // Process selected services
+    for (let { table, column, nameColumn } of serviceTables) {
+      const selectedIds = selectedServices[table] || [];
+      if (!selectedIds.length) continue;
 
-      if (!services || services.length === 0) continue;
+      const placeholders = selectedIds.map(() => "?").join(", ");
+      const query = `
+        SELECT id, price, offerPrice, ${nameColumn} AS name
+        FROM ${table} 
+        WHERE id IN (${placeholders}) AND productId = ?
+      `;
+      const [services] = await db.execute(query, [...selectedIds, productId]);
+
+      if (services.length !== selectedIds.length) {
+        return res.status(400).json({
+          success: false,
+          message: `Some selected ${table} items do not belong to this product.`,
+        });
+      }
 
       // Calculate total price
-      services.forEach(s => {
-        const price = s.price ?? 0;
-        const discount = s.offerPrice ?? 0;
-        totalPrice += (price - discount);
-      });
+      for (const s of services) {
+        totalPrice += (s.price || 0) - (s.offerPrice || 0);
+      }
 
       // Insert into junction table
       const junctionTable = `Event${table}`;
       const values = services.map(() => `(?, ?)`).join(", ");
-      const params = services.flatMap(s => [eventId, s.id ?? null]); // fallback to null
-      await db.execute(
-        `INSERT INTO ${junctionTable} (eventId, ${column}) VALUES ${values}`,
-        params
-      );
+      const params = services.flatMap((s) => [eventId, s.id]);
+      await db.execute(`INSERT INTO ${junctionTable} (eventId, ${column}) VALUES ${values}`, params);
+
+      // Add to servicesResult for frontend
+      servicesResult[table] = services;
     }
 
-    // Update event with total_price
-    await db.execute(
-      `UPDATE Event SET total_price = ?, updated_at = NOW() WHERE id = ?`,
-      [totalPrice, eventId]
-    );
+    // Update Event total price
+    await db.execute(`UPDATE Event SET total_price = ?, updated_at = NOW() WHERE id = ?`, [totalPrice, eventId]);
 
-    // Send email
+    // Send email (non-blocking)
     try {
       const [[user]] = await db.execute(`SELECT email FROM User WHERE id = ?`, [userId]);
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: process.env.EMAIL_USER,
         subject: "New Venue Booking Request",
-        html: `
-          <h1>New Booking Request</h1>
-          <p><strong>User:</strong> ${user?.email}</p>
-          <p><strong>Product:</strong> ${product.title}</p>
-          <p><strong>From:</strong> ${startDate.toLocaleDateString()}</p>
-          <p><strong>To:</strong> ${endDate.toLocaleDateString()}</p>
-          <p><strong>Total Price:</strong> $${totalPrice}</p>
-        `,
+        html: `<h1>New Booking Request</h1>
+               <p><strong>User:</strong> ${user?.email}</p>
+               <p><strong>Product:</strong> ${product.title}</p>
+               <p><strong>From:</strong> ${startDate.toLocaleDateString()}</p>
+               <p><strong>To:</strong> ${endDate.toLocaleDateString()}</p>
+               <p><strong>Total Price:</strong> $${totalPrice}</p>`,
       };
       await transporter.sendMail(mailOptions);
     } catch (emailError) {
-      console.error("Email sending failed, booking saved:", emailError);
+      console.error("Email sending failed:", emailError);
     }
 
+    // Return booking with services grouped
     const [newBooking] = await db.execute(`SELECT * FROM Event WHERE id = ?`, [eventId]);
-    res.status(201).json({ success: true, booking: newBooking[0] });
+    const booking = {
+      ...newBooking[0],
+      product,
+      eventType: { id: finalEventTypeId },
+      services: servicesResult,
+    };
 
+    return res.status(201).json({ success: true, booking });
   } catch (error) {
     console.error("createBooking error:", error);
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 

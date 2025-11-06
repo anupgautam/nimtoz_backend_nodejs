@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Khalti Test Payment</title>
+  <script src="https://khalti.com/static/khalti-checkout.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align:center; padding:40px; }
+    input, button { padding:10px; margin:8px; font-size:1rem; }
+    button { background:#5c2d91; color:#fff; border:none; border-radius:6px; cursor:pointer; }
+    button:disabled { opacity:0.6; cursor:not-allowed; }
+    .note { color: #666; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Khalti Test Checkout</h1>
+
+  <div>
+    <label>
+      Event ID:
+      <input type="number" id="eventId" placeholder="Enter event id" value="44" min="1" />
+    </label>
+  </div>
+
+  <div>
+    <label>
+      JWT (required):
+      <input type="text" id="jwtToken" placeholder="Paste token here" style="width:300px" />
+    </label>
+  </div>
+
+  <div>
+    <button id="payBtn">Pay with Khalti (Test)</button>
+  </div>
+
+  <p class="note">Khalti widget script is official; keys decide mode.</p>
+
+  <script>
+    const payBtn = document.getElementById('payBtn');
+
+    payBtn.addEventListener('click', async () => {
+      const rawEventId = document.getElementById('eventId').value;
+      const eventId = parseInt(rawEventId, 10);
+      if (!eventId || eventId <= 0) {
+        alert('Please enter a valid Event ID');
+        return;
+      }
+
+      const token = document.getElementById('jwtToken').value.trim();
+      if (!token) {
+        alert('JWT token is required');
+        return;
+      }
+
+      payBtn.disabled = true;
+      payBtn.textContent = 'Initializing...';
+
+      try {
+        // 1️⃣ Call backend to initiate Khalti payment
+        const initRes = await fetch('http://localhost:1000/payment/khalti/initiate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ eventId })
+        });
+
+        const initJson = await initRes.json();
+        if (!initJson.success) {
+          console.error('Initiate error:', initJson);
+          alert(initJson.message || 'Failed to initiate Khalti payment');
+          return;
+        }
+
+        const { publicKey, amount, productIdentity, productName, eventId: returnedEventId } = initJson.data;
+
+        if (!publicKey || !amount) {
+          alert('Invalid response from server.');
+          return;
+        }
+
+        // 2️⃣ Configure Khalti checkout
+        const config = {
+          publicKey,
+          productIdentity: productIdentity || `event_${returnedEventId}`,
+          productName: productName || `Event #${returnedEventId}`,
+          productUrl: window.location.href,
+          eventHandler: {
+            onSuccess: async function (payload) {
+              console.log('Khalti token:', payload.token);
+
+              try {
+                // 3️⃣ Verify payment with backend
+                const verifyRes = await fetch('http://localhost:1000/payment/khalti/verify', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify({
+                    token: payload.token,
+                    amount: Number(amount),
+                    eventId: returnedEventId
+                  })
+                });
+
+                const verifyJson = await verifyRes.json();
+                console.log('Verify response:', verifyJson);
+
+                if (verifyJson.success) {
+                  window.location.href = '/payment_status.html?status=success';
+                } else {
+                  window.location.href = '/payment_status.html?status=failed';
+                }
+
+              } catch (err) {
+                console.error('Verification error:', err);
+                window.location.href = '/payment_status.html?status=failed';
+              }
+            },
+            onError: function (err) {
+              console.error('Khalti error:', err);
+              alert('Khalti payment error. Check console.');
+              window.location.href = '/payment_status.html?status=failed';
+            },
+            onClose: function () {
+              console.log('Khalti widget closed by user');
+            }
+          },
+          paymentPreference: ["KHALTI"]
+        };
+
+        const checkout = new KhaltiCheckout(config);
+        checkout.show({ amount: Math.round(Number(amount) * 100) }); // paisa
+
+      } catch (err) {
+        console.error('Error initiating Khalti flow:', err);
+        alert('Unexpected error. Check console.');
+      } finally {
+        payBtn.disabled = false;
+        payBtn.textContent = 'Pay with Khalti (Test)';
+      }
+    });
+  </script>
+</body>
+</html>
