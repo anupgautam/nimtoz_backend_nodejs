@@ -1,13 +1,14 @@
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
 
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import os from "os";
+import bodyParser from "body-parser";
+import path from "path";
 
-
-
+// Middleware
 import { customLogger } from "./middleware/morganLogger.js";
 import corsOptions from "./config/corsOptions.js";
 import { globalErrorHandler } from "./middleware/globalErrorHandler.js";
@@ -29,6 +30,7 @@ import forgotPassword from "./routes/api/forgotPassword.js";
 import resetPassword from "./routes/api/resetPassword.js";
 import stats from "./routes/api/statistics.js";
 import mybookings from "./routes/api/mybookings.js";
+import payment from "./routes/api/payment.js";
 
 //! Controllers (direct endpoints)
 import { countCategory, getCategoryByProductId } from "./controllers/categoriesController.js";
@@ -47,21 +49,27 @@ import { verifyOTP } from "./controllers/verifyOTPController.js";
 const app = express();
 const PORT = process.env.PORT || 1000;
 
-//! Middleware
+//! CORS - allow all origins for testing
 app.use(
   cors({
-    origin: [
-      "*",
-      "http://localhost:3000",
-    ],
+    origin: "*",
     methods: ["GET", "POST", "PATCH", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
-app.use("/uploads", express.static("uploads"));
+
+//! Serve static files from public folder
+app.use(express.static(path.join(process.cwd(), "public")));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+//! Stripe Webhook needs raw body, must be BEFORE express.json()
+app.use("/payment/stripe/webhook", bodyParser.raw({ type: "application/json" }));
+
+//! JSON & URL-encoded parser for other routes
 app.use(express.urlencoded({ extended: false, limit: "70mb" }));
 app.use(express.json({ limit: "70mb" }));
+
 app.use(cookieParser());
 app.use(customLogger);
 
@@ -93,6 +101,7 @@ app.use("/productcategoryid/:id", getCategoryByProductId);
 app.use("/product/:id", updateProduct);
 app.use("/stat-blogs", getStatBlogs);
 app.use("/mybookings", mybookings);
+app.use("/payment", payment);
 
 //! Base route (homepage showing all endpoints)
 app.get("/", (req, res) => {
@@ -119,7 +128,6 @@ app.get("/", (req, res) => {
     { path: "/bookingstats", desc: "Booking statistics" },
     { path: "/stat-blogs", desc: "Blog statistics" },
     { path: "/mybookings", desc: "User's bookings by ID" },
-
   ];
 
   let html = `
@@ -127,25 +135,24 @@ app.get("/", (req, res) => {
     <p style="font-family: Arial;">Server is running successfully.</p>
     <h2 style="font-family: Arial;">Available API Endpoints:</h2>
     <ul style="font-family: Arial; line-height: 1.7;">
-      ${routes
-        .map(
-          (r) =>
-            `<li><b><a href="${r.path}" target="_blank">${r.path}</a></b> — ${r.desc}</li>`
-        )
-        .join("")}
+      ${routes.map(r => `<li><b><a href="${r.path}" target="_blank">${r.path}</a></b> — ${r.desc}</li>`).join("")}
     </ul>
     <hr>
     <p style="font-family: Arial; color: gray;">Last updated: ${new Date().toLocaleString()}</p>
   `;
-
   res.status(200).send(html);
+});
+
+//! Serve payment_status.html for payment result
+app.get("/payment_status.html", (req, res) => {
+  res.sendFile(path.join(process.cwd(), "public", "payment_status.html"));
 });
 
 //! Prevent favicon 404 logs
 app.get("/favicon.ico", (req, res) => res.status(204));
 
 //! 404 handler for unknown routes
-app.get("*", (req, res, next) => {
+app.use((req, res, next) => {
   const err = new Error(`${req.originalUrl} doesn't exist`);
   err.statusCode = 404;
   err.status = "fail";
@@ -161,7 +168,7 @@ const networkInterfaces = os.networkInterfaces();
 const localIP =
   Object.values(networkInterfaces)
     .flat()
-    .find((iface) => iface.family === "IPv4" && !iface.internal)?.address || "localhost";
+    .find(iface => iface.family === "IPv4" && !iface.internal)?.address || "localhost";
 
 //! Start server
 app.listen(PORT, ip, () => {

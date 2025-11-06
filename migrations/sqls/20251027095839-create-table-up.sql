@@ -121,6 +121,18 @@ CREATE TABLE `ProductImage` (
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE Payment (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  eventId INT NOT NULL,
+  payment_method ENUM('KHALTI','ESEWA','STRIPE') NOT NULL,
+  payment_status ENUM('PENDING','COMPLETED','FAILED') DEFAULT 'PENDING',
+  pidx VARCHAR(255) NULL,
+  transaction_id VARCHAR(255) NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (eventId) REFERENCES Event(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- -------------------------------------------------
 -- Sub Product
 -- -------------------------------------------------
