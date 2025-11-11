@@ -1,5 +1,5 @@
 // controllers/blogController.js
-import { BASE_URL } from "../baseUrl.js";
+import { BASE_URL } from "../baseURL.js";
 import db from "../config/prisma.js";
 import { blogSchema } from "../utils/validationSchema.js";
 import { z } from "zod";

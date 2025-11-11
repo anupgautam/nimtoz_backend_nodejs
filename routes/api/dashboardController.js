@@ -1,29 +1,25 @@
-import { PrismaClient } from "@prisma/client";
+import db from "../../config/prisma.js";
 
-const prisma = new PrismaClient();
-
-//! Get All Counts
 const getAllCounts = async (req, res) => {
     try {
-        const [userCount, businessCount, locationCount, productCount] = await prisma.$transaction([
-            prisma.user.count(),
-            prisma.venue.count(),
-            prisma.district.count(),
-            prisma.product.count()
-        ])
+        // Run all counts in parallel
+        const [userCountResult] = await db.execute("SELECT COUNT(*) AS total FROM User");
+        const [businessCountResult] = await db.execute("SELECT COUNT(*) AS total FROM Venue");
+        const [locationCountResult] = await db.execute("SELECT COUNT(*) AS total FROM District");
+        const [productCountResult] = await db.execute("SELECT COUNT(*) AS total FROM Product");
 
         res.status(200).json({
-            users: userCount,
-            business: businessCount,
-            location: locationCount,
-            products: productCount,
-        })
-
-
+            success: true,
+            users: userCountResult[0].total || 0,
+            business: businessCountResult[0].total || 0,
+            location: locationCountResult[0].total || 0,
+            products: productCountResult[0].total || 0,
+        });
     } catch (error) {
+        console.error("getAllCounts error:", error);
         res.status(500).json({ success: false, error: error.message });
     }
-}
+};
 
 export {
     getAllCounts,
