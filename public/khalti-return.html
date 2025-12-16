@@ -1,0 +1,36 @@
+<!-- khalti_return.html -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"/><title>Khalti Return</title></head>
+<body style="font-family: Arial; padding: 20px;">
+  <h2>Khalti return</h2>
+  <div id="q"></div>
+  <div id="verify"></div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const obj = {};
+params.forEach((v,k) => obj[k]=v);
+document.getElementById('q').innerHTML = "<pre>"+JSON.stringify(obj, null, 2) + "</pre>";
+
+const pidx = params.get('pidx');
+if (!pidx) {
+  document.getElementById('verify').textContent = "No pidx present in query params.";
+} else {
+  document.getElementById('verify').textContent = "Verifying payment with server...";
+  fetch('/payment/khalti/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pidx })
+  })
+  .then(r=>r.json())
+  .then(data=>{
+    document.getElementById('verify').innerHTML = "<h3>Verification result</h3><pre>" + JSON.stringify(data, null, 2) + "</pre>";
+  })
+  .catch(err=>{
+    document.getElementById('verify').textContent = "Verify request failed: " + err.message;
+  })
+}
+</script>
+</body>
+</html>

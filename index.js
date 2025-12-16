@@ -159,6 +159,9 @@ app.use((req, res, next) => {
   next(err);
 });
 
+// Serve static files
+app.use(express.static(path.join(process.cwd(), "public")));
+
 //! Global error handler
 app.use(globalErrorHandler);
 
