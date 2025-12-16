@@ -2,7 +2,7 @@
 import { productSchema, updateProductSchema } from "../utils/validationSchema.js";
 import { z } from "zod";
 import db from "../config/prisma.js"; // <-- your MySQL pool
-import { BASE_URL } from "../baseUrl.js";
+import { BASE_URL } from "../baseURL.js";
 
 // Helper: Execute query and return rows
 const query = async (sql, params = []) => {

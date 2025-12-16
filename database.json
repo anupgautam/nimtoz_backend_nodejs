@@ -1,10 +1,10 @@
 {
     "dev" : {
 "driver" : "mysql",
-"user" : "root",
-"host" : "localhost",
-"password" : "",
-"database": "nimtoz",
+"user" : "nimtozco_nimtozco",
+"host" : "my.hosteditor.com",
+"password" : "Office@0977",
+"database": "nimtozco_nimtoz",
 "port" : "3306"
 
     } 
