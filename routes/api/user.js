@@ -10,7 +10,7 @@ router.route('/')
 
 router.route('/:id')
     .get(authenticateToken, authorizeRole('ADMIN'), getUserById)
-    .put(authenticateToken, authorizeRole('ADMIN'), updateUser)
+    .patch(authenticateToken, authorizeRole('ADMIN'), updateUser)
     .delete(authenticateToken, authorizeRole('ADMIN'), deleteUserById)
 
 export default router;

@@ -27,7 +27,6 @@ export const buildFileUrl = (filePath) => {
     : `${BASE_URL.replace(/\/$/, "")}/${filePath.replace(/^\/+/, "")}`;
 };
 
-
 //! Get All Products 
 const getAllProducts = async (req, res) => {
   try {
@@ -182,38 +181,46 @@ const getAllProducts = async (req, res) => {
 const getBookingProducts = async (req, res) => {
     try {
         const rows = await query(`
-      SELECT 
-        p.id, p.title,
-        pp.id as pp_id, pp.partypalace_name, pp.price,
-        mu.id as mu_id, mu.instrument_name, mu.price,
-        mm.id as mm_id, mm.multimedia_name, mm.price,
-        lx.id as lx_id, lx.luxury_name, lx.price,
-        mt.id as mt_id, mt.meeting_name, mt.price,
-        ad.id as ad_id, ad.adventure_name, ad.price,
-        bd.id as bd_id, bd.beauty_name, bd.price,
-        en.id as en_id, en.entertainment_name, en.price,
-        ct.id as ct_id, ct.catering_name, ct.price
-      FROM Product p
-      JOIN Venue v ON p.businessId = v.id
-      LEFT JOIN PartyPalace pp ON p.id = pp.productId
-      LEFT JOIN Musical mu ON p.id = mu.productId
-      LEFT JOIN Multimedia mm ON p.id = mm.productId
-      LEFT JOIN Luxury lx ON p.id = lx.productId
-      LEFT JOIN Meeting mt ON p.id = mt.productId
-      LEFT JOIN Adventure ad ON p.id = ad.productId
-      LEFT JOIN BeautyDecor bd ON p.id = bd.productId
-      LEFT JOIN Entertainment en ON p.id = en.productId
-      LEFT JOIN CateringTent ct ON p.id = ct.productId
-      WHERE v.active = 1
-      ORDER BY p.updated_at DESC
-    `);
+          SELECT 
+            p.id, p.title,
+            pp.price as pp_price, pp.offerPrice as pp_offer,
+            mu.price as mu_price, mu.offerPrice as mu_offer,
+            mm.price as mm_price, mm.offerPrice as mm_offer,
+            lx.price as lx_price, lx.offerPrice as lx_offer,
+            mt.price as mt_price, mt.offerPrice as mt_offer,
+            ad.price as ad_price, ad.offerPrice as ad_offer,
+            bd.price as bd_price, bd.offerPrice as bd_offer,
+            en.price as en_price, en.offerPrice as en_offer,
+            ct.price as ct_price, ct.offerPrice as ct_offer,
+            pp.id as pp_id, pp.partypalace_name,
+            mu.id as mu_id, mu.instrument_name,
+            mm.id as mm_id, mm.multimedia_name,
+            lx.id as lx_id, lx.luxury_name,
+            mt.id as mt_id, mt.meeting_name,
+            ad.id as ad_id, ad.adventure_name,
+            bd.id as bd_id, bd.beauty_name,
+            en.id as en_id, en.entertainment_name,
+            ct.id as ct_id, ct.catering_name
+          FROM Product p
+          JOIN Venue v ON p.businessId = v.id
+          LEFT JOIN PartyPalace pp ON p.id = pp.productId
+          LEFT JOIN Musical mu ON p.id = mu.productId
+          LEFT JOIN Multimedia mm ON p.id = mm.productId
+          LEFT JOIN Luxury lx ON p.id = lx.productId
+          LEFT JOIN Meeting mt ON p.id = mt.productId
+          LEFT JOIN Adventure ad ON p.id = ad.productId
+          LEFT JOIN BeautyDecor bd ON p.id = bd.productId
+          LEFT JOIN Entertainment en ON p.id = en.productId
+          LEFT JOIN CateringTent ct ON p.id = ct.productId
+          WHERE v.active = 1
+          ORDER BY p.updated_at DESC
+        `);
 
-        const products = [];
-        const map = new Map();
+        const productsMap = new Map();
 
         rows.forEach((row) => {
-            if (!map.has(row.id)) {
-                map.set(row.id, {
+            if (!productsMap.has(row.id)) {
+                productsMap.set(row.id, {
                     id: row.id,
                     title: row.title,
                     partypalace: [],
@@ -225,21 +232,31 @@ const getBookingProducts = async (req, res) => {
                     beautydecor: [],
                     entertainment: [],
                     cateringtent: [],
+                    totalPrice: 0, // final total after deducting offerPrice
                 });
             }
-            const p = map.get(row.id);
-            if (row.pp_id) p.partypalace.push({ id: row.pp_id, partypalace_name: row.partypalace_name, price: row.price });
-            if (row.mu_id) p.musical.push({ id: row.mu_id, instrument_name: row.instrument_name, price: row.price });
-            if (row.mm_id) p.multimedia.push({ id: row.mm_id, multimedia_name: row.multimedia_name, price: row.price });
-            if (row.lx_id) p.luxury.push({ id: row.lx_id, luxury_name: row.luxury_name, price: row.price });
-            if (row.mt_id) p.meeting.push({ id: row.mt_id, meeting_name: row.meeting_name, price: row.price });
-            if (row.ad_id) p.adventure.push({ id: row.ad_id, adventure_name: row.adventure_name, price: row.price });
-            if (row.bd_id) p.beautydecor.push({ id: row.bd_id, beauty_name: row.beauty_name, price: row.price });
-            if (row.en_id) p.entertainment.push({ id: row.en_id, entertainment_name: row.entertainment_name, price: row.price });
-            if (row.ct_id) p.cateringtent.push({ id: row.ct_id, catering_name: row.catering_name, price: row.price });
+
+            const p = productsMap.get(row.id);
+
+            const addService = (serviceId, name, price, offer, alias, colName) => {
+                if (!serviceId) return;
+                const finalPrice = price - (offer || 0); // deduct offerPrice from price
+                p[alias].push({ id: serviceId, [colName]: name, price, offerPrice: offer, finalPrice });
+                p.totalPrice += finalPrice;
+            };
+
+            addService(row.pp_id, row.partypalace_name, row.pp_price, row.pp_offer, "partypalace", "partypalace_name");
+            addService(row.mu_id, row.instrument_name, row.mu_price, row.mu_offer, "musical", "instrument_name");
+            addService(row.mm_id, row.multimedia_name, row.mm_price, row.mm_offer, "multimedia", "multimedia_name");
+            addService(row.lx_id, row.luxury_name, row.lx_price, row.lx_offer, "luxury", "luxury_name");
+            addService(row.mt_id, row.meeting_name, row.mt_price, row.mt_offer, "meeting", "meeting_name");
+            addService(row.ad_id, row.adventure_name, row.ad_price, row.ad_offer, "adventure", "adventure_name");
+            addService(row.bd_id, row.beauty_name, row.bd_price, row.bd_offer, "beautydecor", "beauty_name");
+            addService(row.en_id, row.entertainment_name, row.en_price, row.en_offer, "entertainment", "entertainment_name");
+            addService(row.ct_id, row.catering_name, row.ct_price, row.ct_offer, "cateringtent", "catering_name");
         });
 
-        map.forEach((val) => products.push(val));
+        const products = Array.from(productsMap.values());
         res.json(products);
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -449,8 +466,6 @@ const getHomePageProducts = async (req, res) => {
     }
 };
 
-
-
 //! Get Product by ID
 const getProductById = async (req, res) => {
   const { id } = req.params;
@@ -558,8 +573,6 @@ const getProductById = async (req, res) => {
   }
 };
 
-
-
 //! Get Product Images by ID
 const getProductImagesById = async (req, res) => {
     const { id } = req.params;
@@ -580,7 +593,6 @@ const getProductImagesById = async (req, res) => {
     }
 };
 
-
 //! Delete Product by ID
 const deleteProductById = async (req, res) => {
     const { id } = req.params;
@@ -595,7 +607,6 @@ const deleteProductById = async (req, res) => {
     }
 };
 
-
 // Helper to safely parse JSON arrays
 const safeParseJSON = (field) => {
   try {
@@ -607,14 +618,15 @@ const safeParseJSON = (field) => {
   }
 };
 //! Create Product
+//! Create Product
 const createProduct = async (req, res) => {
   try {
-    // 1️⃣ Handle uploaded images
+    // Handle uploaded images
     const productImages = req.files
       ? req.files.map(file => ({ url: file.path.replace(/\\/g, "/") }))
       : [];
 
-    // 2️⃣ Parse request data
+    // Parse request data
     const parsedData = {
       title: req.body.title,
       description: req.body.description,
@@ -635,7 +647,7 @@ const createProduct = async (req, res) => {
       multimedia: safeParseJSON(req.body.multimedia),
     };
 
-    // 3️⃣ Insert main product
+    // Insert main product
     const [result] = await db.execute(
       `INSERT INTO Product 
       (title, description, short_description, address, category_id, districtId, businessId, is_active, created_at, updated_at)
@@ -653,13 +665,13 @@ const createProduct = async (req, res) => {
     );
     const productId = result.insertId;
 
-    // 4️⃣ Insert product images
+    // Insert product images
     if (productImages.length > 0) {
       const imgValues = productImages.map(img => [img.url, productId]);
       await db.query(`INSERT INTO ProductImage (url, productId) VALUES ?`, [imgValues]);
     }
 
-    // 5️⃣ Insert services helper
+    // Insert services helper
     const insertService = async (data, table, nameColumn) => {
       if (data && data.length > 0) {
         const values = data.map(item => [
@@ -676,7 +688,7 @@ const createProduct = async (req, res) => {
       }
     };
 
-    // 6️⃣ Insert all services
+    // Insert all services
     await Promise.all([
       insertService(parsedData.partypalace, "PartyPalace", "partypalace_name"),
       insertService(parsedData.musical, "Musical", "instrument_name"),
@@ -689,24 +701,76 @@ const createProduct = async (req, res) => {
       insertService(parsedData.multimedia, "Multimedia", "multimedia_name"),
     ]);
 
-    res.status(201).json({ success: true, message: "Product Created Successfully" });
+    // Fetch the inserted product with full details
+    const [productRows] = await db.execute(
+      `SELECT 
+        p.*, 
+        d.id AS dist_id, d.district_name,
+        c.id AS category_id, c.category_name,
+        v.id AS business_id, v.venue_name, v.venue_address, v.contact_person, v.phone_number, v.email, v.pan_vat_number
+       FROM Product p
+       LEFT JOIN District d ON p.districtId = d.id
+       LEFT JOIN Category c ON p.category_id = c.id
+       LEFT JOIN Venue v ON p.businessId = v.id
+       WHERE p.id = ?`,
+      [productId]
+    );
+
+    const row = productRows[0];
+
+    const product = {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      short_description: row.short_description,
+      address: row.address,
+      is_active: Boolean(row.is_active),
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      District: row.dist_id ? { id: row.dist_id, district_name: row.district_name } : null,
+      Category: row.category_id ? { id: row.category_id, category_name: row.category_name } : null,
+      Business: row.business_id
+        ? {
+            id: row.business_id,
+            venue_name: row.venue_name,
+            venue_address: row.venue_address,
+            contact_person: row.contact_person,
+            phone_number: row.phone_number,
+            email: row.email,
+            pan_vat_number: row.pan_vat_number,
+          }
+        : null,
+      product_image: productImages.map(img => ({ url: img.url })),
+      partypalace: parsedData.partypalace,
+      musical: parsedData.musical,
+      luxury: parsedData.luxury,
+      entertainment: parsedData.entertainment,
+      meeting: parsedData.meeting,
+      beautydecor: parsedData.beautydecor,
+      adventure: parsedData.adventure,
+      cateringtent: parsedData.cateringtent,
+      multimedia: parsedData.multimedia,
+    };
+
+    res.status(201).json({ success: true, message: "Product Created Successfully", product });
   } catch (error) {
     console.error("createProduct Error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
 
+
 //! Update Product
 const updateProduct = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // 1️⃣ Handle uploaded files (convert path to forward slashes)
+    // Handle uploaded files (convert path to forward slashes)
     const uploadedFiles = req.files?.length
       ? req.files.map(file => ({ url: file.path.replace(/\\/g, "/") }))
       : [];
 
-    // 2️⃣ Handle existing images from body (preserve if unchanged)
+    // Handle existing images from body (preserve if unchanged)
     let existingImages = [];
     if (req.body.product_image) {
       const normalizeImage = img => {
@@ -723,12 +787,12 @@ const updateProduct = async (req, res) => {
       }
     }
 
-    // 3️⃣ Merge uploaded + existing (without duplicates)
+    // Merge uploaded + existing (without duplicates)
     const allImages = [...existingImages, ...uploadedFiles].filter(
       (img, index, self) => index === self.findIndex(t => t.url === img.url)
     );
 
-    // 4️⃣ Safely parse JSON-like fields (arrays of objects)
+    // Safely parse JSON-like fields (arrays of objects)
     const parseField = field => {
       try {
         return typeof field === "string" ? JSON.parse(field) : field || [];
@@ -737,7 +801,7 @@ const updateProduct = async (req, res) => {
       }
     };
 
-    // 5️⃣ Prepare parsed data
+    // Prepare parsed data
     const parsedData = {
       title: req.body.title,
       description: req.body.description,
@@ -758,7 +822,7 @@ const updateProduct = async (req, res) => {
       cateringtent: parseField(req.body.cateringtent),
     };
 
-    // 6️⃣ Bulk insert helper
+    // Bulk insert helper
     const bulkInsert = async (table, columns, rows) => {
       if (!rows || rows.length === 0) return;
       const placeholders = rows.map(() => `(${columns.map(() => "?").join(",")})`).join(",");
@@ -767,7 +831,7 @@ const updateProduct = async (req, res) => {
       await db.execute(sql, values);
     };
 
-    // 7️⃣ Delete and re-insert related data conditionally
+    // Delete and re-insert related data conditionally
     const serviceTables = [
       "Multimedia",
       "Musical",
@@ -792,7 +856,7 @@ const updateProduct = async (req, res) => {
     // Delete old service rows
     await Promise.all(serviceTables.map(table => db.execute(`DELETE FROM ${table} WHERE productId = ?`, [id])));
 
-    // 8️⃣ Re-insert services
+    // Re-insert services
     const tableMap = {
       Multimedia: "multimedia_name",
       Musical: "instrument_name",
@@ -834,7 +898,7 @@ const updateProduct = async (req, res) => {
       )
     );
 
-    // 9️⃣ Update main product info
+    // Update main product info
     await db.execute(
       `UPDATE Product 
        SET title = ?, description = ?, short_description = ?, address = ?, 

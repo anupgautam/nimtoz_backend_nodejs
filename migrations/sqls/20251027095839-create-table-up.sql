@@ -37,10 +37,14 @@ CREATE TABLE `User` (
   `otp`                      VARCHAR(255) NULL,
   `otpExpiresAt`             DATETIME NULL,
   `isVerified`               BOOLEAN DEFAULT FALSE,
+  `status`                   ENUM('ACTIVE', 'INACTIVE') NOT NULL DEFAULT 'INACTIVE',
   `created_at`               DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `updated_at`               DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `updated_at`               DATETIME DEFAULT CURRENT_TIMESTAMP 
+                              ON UPDATE CURRENT_TIMESTAMP,
+
   FOREIGN KEY (`role`) REFERENCES `Role`(`role`) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
+
 -- -------------------------------------------------
 -- CATEGORY
 -- -------------------------------------------------
@@ -119,18 +123,6 @@ CREATE TABLE `ProductImage` (
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
-CREATE TABLE Payment (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  eventId INT NOT NULL,
-  payment_method ENUM('KHALTI','ESEWA','STRIPE') NOT NULL,
-  payment_status ENUM('PENDING','COMPLETED','FAILED') DEFAULT 'PENDING',
-  pidx VARCHAR(255) NULL,
-  transaction_id VARCHAR(255) NULL,
-  amount DECIMAL(10,2) NOT NULL,
-  payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (eventId) REFERENCES Event(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
@@ -325,6 +317,21 @@ CREATE TABLE `Event` (
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`approved_by_id`) REFERENCES `User`(`id`) ON DELETE SET NULL,
   FOREIGN KEY (`eventTypeId`) REFERENCES `EventType`(`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+-- -------------------------------------------------
+-- PAYMENT
+-- -------------------------------------------------
+CREATE TABLE `Payment` (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  eventId INT NOT NULL,
+  payment_method ENUM('KHALTI','ESEWA') NOT NULL,
+  payment_status ENUM('PENDING','COMPLETED','FAILED') DEFAULT 'PENDING',
+  pidx VARCHAR(255) NULL,
+  transaction_id VARCHAR(255) NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (eventId) REFERENCES `Event`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 
