@@ -2,7 +2,7 @@
 import { categorySchema } from "../utils/validationSchema.js";
 import { z } from "zod";
 import db from "../config/prisma.js";
-import { BASE_URL } from "../baseURL.js";
+import { BASE_URL } from "../baseUrl.js";
 
 //! Get All Categories (with search, pagination, and product titles)
 const getAllCategories = async (req, res) => {

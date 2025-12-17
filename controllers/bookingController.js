@@ -538,13 +538,16 @@ const createBooking = async (req, res) => {
     productId,
     eventTypeId,
     events,
-    selectedServices = {}, // e.g., { "BeautyDecor": [11,12], "Musical": [3] }
+    selectedServices = {},
   } = req.body;
 
   try {
     const finalEventTypeId = eventTypeId || (events && events[0]?.id);
     if (!start_date || !end_date || !userId || !productId || !finalEventTypeId) {
-      return res.status(400).json({ success: false, error: "Missing required fields" });
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields",
+      });
     }
 
     const startDate = new Date(start_date);
@@ -552,42 +555,79 @@ const createBooking = async (req, res) => {
     const combinedStartTime = combineDateAndTime(start_date, start_time);
     const combinedEndTime = combineDateAndTime(end_date, end_time);
 
-    // Verify product exists
+    // 🔹 AUTO APPROVAL LOGIC (ONLY CHANGE)
+    const isApproved = req.user.role === "ADMIN" ? 1 : 0;
+
+    // ✅ Verify product exists
     const [[product]] = await db.execute(
-      `SELECT p.title, c.category_name 
-       FROM Product p 
-       JOIN Category c ON p.category_id = c.id 
+      `SELECT p.title, c.category_name
+       FROM Product p
+       JOIN Category c ON p.category_id = c.id
        WHERE p.id = ?`,
       [productId]
     );
-    if (!product)
-      return res.status(404).json({ success: false, error: "Product not found" });
 
-    // Conflict checks
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: "Product not found",
+      });
+    }
+
+    // ❌ Conflict check (approved)
     const [[approvedConflict]] = await db.execute(
-      `SELECT 1 FROM Event WHERE productId=? AND is_approved=1 AND start_date<=? AND end_date>=?`,
+      `SELECT 1 FROM Event
+       WHERE productId = ?
+         AND is_approved = 1
+         AND start_date <= ?
+         AND end_date >= ?`,
       [productId, endDate, startDate]
     );
-    if (approvedConflict)
-      return res.status(409).json({ success: false, message: "An approved event already exists on this date." });
 
-    const [[overlap]] = await db.execute(
-      `SELECT 1 FROM Event WHERE productId=? AND is_approved=0 AND start_date<? AND end_date>?`,
+    if (approvedConflict) {
+      return res.status(409).json({
+        success: false,
+        message: "An approved booking already exists on this date",
+      });
+    }
+
+    // ❌ Conflict check (pending)
+    const [[pendingConflict]] = await db.execute(
+      `SELECT 1 FROM Event
+       WHERE productId = ?
+         AND is_approved = 0
+         AND start_date < ?
+         AND end_date > ?`,
       [productId, endDate, startDate]
     );
-    if (overlap)
-      return res.status(409).json({ success: false, message: "Booking overlaps with an existing request." });
 
-    // Insert main Event
+    if (pendingConflict) {
+      return res.status(409).json({
+        success: false,
+        message: "Booking overlaps with an existing pending request",
+      });
+    }
+
+    // 🧾 INSERT EVENT
     const [eventResult] = await db.execute(
-      `INSERT INTO Event 
-        (start_date, end_date, start_time, end_time, userId, productId, eventTypeId, is_approved, created_at, updated_at)
+      `INSERT INTO Event
+       (start_date, end_date, start_time, end_time, userId, productId, eventTypeId, is_approved, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [startDate, endDate, combinedStartTime, combinedEndTime, userId, productId, finalEventTypeId, 0]
+      [
+        startDate,
+        endDate,
+        combinedStartTime,
+        combinedEndTime,
+        userId,
+        productId,
+        finalEventTypeId,
+        isApproved, // ✅ ADMIN → 1, others → 0
+      ]
     );
+
     const eventId = eventResult.insertId;
 
-    // Service table mapping
+    // 🔗 SERVICE TABLE MAPPING
     const serviceTables = [
       { table: "Multimedia", column: "multimediaId", nameColumn: "multimedia_name" },
       { table: "Musical", column: "musicalId", nameColumn: "instrument_name" },
@@ -603,78 +643,55 @@ const createBooking = async (req, res) => {
     let totalPrice = 0;
     const servicesResult = {};
 
-    // Process selected services
-    for (let { table, column, nameColumn } of serviceTables) {
+    for (const { table, column, nameColumn } of serviceTables) {
       const selectedIds = selectedServices[table] || [];
       if (!selectedIds.length) continue;
 
-      const placeholders = selectedIds.map(() => "?").join(", ");
-      const query = `
-        SELECT id, price, offerPrice, ${nameColumn} AS name
-        FROM ${table} 
-        WHERE id IN (${placeholders}) AND productId = ?
-      `;
-      const [services] = await db.execute(query, [...selectedIds, productId]);
+      const placeholders = selectedIds.map(() => "?").join(",");
+      const [services] = await db.execute(
+        `SELECT id, price, offerPrice, ${nameColumn} AS name
+         FROM ${table}
+         WHERE id IN (${placeholders}) AND productId = ?`,
+        [...selectedIds, productId]
+      );
 
-      if (services.length !== selectedIds.length) {
-        return res.status(400).json({
-          success: false,
-          message: `Some selected ${table} items do not belong to this product.`,
-        });
-      }
-
-      // Calculate total price
       for (const s of services) {
         totalPrice += (s.price || 0) - (s.offerPrice || 0);
       }
 
-      // Insert into junction table
       const junctionTable = `Event${table}`;
-      const values = services.map(() => `(?, ?)`).join(", ");
+      const values = services.map(() => `(?, ?)`).join(",");
       const params = services.flatMap((s) => [eventId, s.id]);
-      await db.execute(`INSERT INTO ${junctionTable} (eventId, ${column}) VALUES ${values}`, params);
 
-      // Add to servicesResult for frontend
+      await db.execute(
+        `INSERT INTO ${junctionTable} (eventId, ${column}) VALUES ${values}`,
+        params
+      );
+
       servicesResult[table] = services;
     }
 
-    // Update Event total price
-    await db.execute(`UPDATE Event SET total_price = ?, updated_at = NOW() WHERE id = ?`, [totalPrice, eventId]);
+    // 💰 Update total price
+    await db.execute(
+      `UPDATE Event SET total_price = ?, updated_at = NOW() WHERE id = ?`,
+      [totalPrice, eventId]
+    );
 
-    // Send email (non-blocking)
-    try {
-      const [[user]] = await db.execute(`SELECT email FROM User WHERE id = ?`, [userId]);
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: process.env.EMAIL_USER,
-        subject: "New Venue Booking Request",
-        html: `<h1>New Booking Request</h1>
-               <p><strong>User:</strong> ${user?.email}</p>
-               <p><strong>Product:</strong> ${product.title}</p>
-               <p><strong>From:</strong> ${startDate.toLocaleDateString()}</p>
-               <p><strong>To:</strong> ${endDate.toLocaleDateString()}</p>
-               <p><strong>Total Price:</strong> $${totalPrice}</p>`,
-      };
-      await transporter.sendMail(mailOptions);
-    } catch (emailError) {
-      console.error("Email sending failed:", emailError);
-    }
+    return res.status(201).json({
+      success: true,
+      bookingId: eventId,
+      is_approved: isApproved,
+    });
 
-    // Return booking with services grouped
-    const [newBooking] = await db.execute(`SELECT * FROM Event WHERE id = ?`, [eventId]);
-    const booking = {
-      ...newBooking[0],
-      product,
-      eventType: { id: finalEventTypeId },
-      services: servicesResult,
-    };
-
-    return res.status(201).json({ success: true, booking });
   } catch (error) {
     console.error("createBooking error:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
   }
 };
+
 
 //! Update Booking (Approve/Reject)
 const updateBooking = async (req, res) => {
