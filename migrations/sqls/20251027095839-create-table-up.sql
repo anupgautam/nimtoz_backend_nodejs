@@ -2,11 +2,14 @@
 -- -------------------------------------------------
 -- ROLES (Using VARCHAR with trigger for MariaDB compatibility)
 -- -------------------------------------------------
-CREATE TABLE `Role` (
+CREATE TABLE `Roles` (
   `role` VARCHAR(50) PRIMARY KEY
 ) ENGINE=InnoDB;
 
-INSERT IGNORE INTO `Role` (`role`) VALUES ('SUPER_ADMIN'), ('ADMIN'), ('USER');
+INSERT INTO `Roles` (`role`) VALUES
+('SUPER_ADMIN'),
+('ADMIN'),
+('USER');
 
 
 -- CREATE TRIGGER check_role
@@ -77,7 +80,7 @@ CREATE TABLE `Venue` (
   `phone_number`   VARCHAR(255) NOT NULL,
   `email`          VARCHAR(255) NOT NULL,
   `pan_vat_number` VARCHAR(255) NULL,
-  `active`         BOOLEAN DEFAULT FALSE,
+  `active`         TINYINT(1) DEFAULT 0,
   `created_at`     DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -101,7 +104,7 @@ CREATE TABLE `Product` (
   `description`      TEXT NOT NULL,
   `address`          VARCHAR(255) NOT NULL,
   `short_description` VARCHAR(255) NULL,
-  `is_active`        BOOLEAN DEFAULT TRUE,
+  `is_active`        TINYINT(1) DEFAULT 1,
   `overall_rating`   FLOAT DEFAULT 0.0,
   `category_id`      INT NOT NULL,
   `districtId`       INT NOT NULL,
@@ -304,7 +307,7 @@ CREATE TABLE `Event` (
   `end_date`       DATETIME NOT NULL,
   `start_time`     DATETIME NULL,
   `end_time`       DATETIME NULL,
-  `is_approved`    BOOLEAN DEFAULT FALSE,
+  `is_approved`    TINYINT(1) DEFAULT 0,
   `total_price`    DECIMAL(10,2) DEFAULT 0,
   `userId`         INT NOT NULL,
   `productId`      INT NOT NULL,
@@ -312,7 +315,6 @@ CREATE TABLE `Event` (
   `approved_by_id` INT NULL,
   `created_at`     DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  
   FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT,
   FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`approved_by_id`) REFERENCES `User`(`id`) ON DELETE SET NULL,
