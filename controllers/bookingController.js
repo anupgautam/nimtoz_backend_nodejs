@@ -53,13 +53,13 @@ async function getDashboardBookingStats() {
         const monthEnd = endOfMonth(currentMonth);
 
         const [events] = await db.execute(
-            `SELECT is_approved, is_rejected FROM Event 
+            `SELECT is_approved FROM Event 
        WHERE start_date >= ? AND start_date <= ?`,
             [monthStart, monthEnd]
         );
 
         const approvedCount = events.filter((e) => e.is_approved).length;
-        const notApprovedCount = events.filter((e) => !e.is_approved && !e.is_rejected).length;
+        const notApprovedCount = events.filter((e) => !e.is_approved).length;
 
         monthsArray.push({
             month: format(currentMonth, "MMM"),

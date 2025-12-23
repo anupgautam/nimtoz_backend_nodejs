@@ -47,7 +47,11 @@ import { getStatBlogs } from "./controllers/blogController.js";
 import { verifyOTP } from "./controllers/verifyOTPController.js";
 
 const app = express();
+<<<<<<< HEAD
 const PORT = process.env.PORT || 1000;
+=======
+const PORT = process.env.PORT || 8001;
+>>>>>>> d2ea1c6 (some error fixed)
 
 //! CORS - allow all origins for testing
 app.use(

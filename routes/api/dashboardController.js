@@ -3,7 +3,7 @@ import db from "../../config/prisma.js";
 const getAllCounts = async (req, res) => {
     try {
         // Run all counts in parallel
-        const [userCountResult] = await db.execute("SELECT COUNT(*) AS total FROM User");
+        const [userCountResult] = await db.execute("SELECT COUNT(*) AS total FROM Users");
         const [businessCountResult] = await db.execute("SELECT COUNT(*) AS total FROM Venue");
         const [locationCountResult] = await db.execute("SELECT COUNT(*) AS total FROM District");
         const [productCountResult] = await db.execute("SELECT COUNT(*) AS total FROM Product");

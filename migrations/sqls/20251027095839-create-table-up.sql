@@ -25,27 +25,25 @@ INSERT INTO `Roles` (`role`) VALUES
 -- -------------------------------------------------
 -- USER
 -- -------------------------------------------------
-CREATE TABLE `User` (
-  `id`                       INT AUTO_INCREMENT PRIMARY KEY,
-  `firstname`                VARCHAR(255) NOT NULL,
-  `lastname`                 VARCHAR(255) NOT NULL,
-  `email`                    VARCHAR(255) NOT NULL UNIQUE,
-  `password`                 VARCHAR(255) NOT NULL,
-  `phone_number`             VARCHAR(255) NOT NULL UNIQUE,
-  `role`                     VARCHAR(50) DEFAULT 'USER',
-  `avatar`                   VARCHAR(255) NULL,
-  `resetPasswordToken`       VARCHAR(255) NULL,
+CREATE TABLE `Users` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `firstname` VARCHAR(255) NOT NULL,
+  `lastname` VARCHAR(255) NOT NULL,
+  `email` VARCHAR(255) NOT NULL UNIQUE,
+  `password` VARCHAR(255) NOT NULL,
+  `phone_number` VARCHAR(255) NOT NULL UNIQUE,
+  `role` VARCHAR(50) DEFAULT 'USER',
+  `avatar` VARCHAR(255) NULL,
+  `resetPasswordToken` VARCHAR(255) NULL,
   `resetPasswordTokenExpiry` DATETIME NULL,
-  `refreshToken`             VARCHAR(255) NULL,
-  `otp`                      VARCHAR(255) NULL,
-  `otpExpiresAt`             DATETIME NULL,
-  `isVerified`               BOOLEAN DEFAULT FALSE,
-  `status`                   ENUM('ACTIVE', 'INACTIVE') NOT NULL DEFAULT 'INACTIVE',
-  `created_at`               DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `updated_at`               DATETIME DEFAULT CURRENT_TIMESTAMP 
-                              ON UPDATE CURRENT_TIMESTAMP,
-
-  FOREIGN KEY (`role`) REFERENCES `Role`(`role`) ON DELETE RESTRICT
+  `refreshToken` VARCHAR(255) NULL,
+  `otp` VARCHAR(255) NULL,
+  `otpExpiresAt` DATETIME NULL,
+  `isVerified` BOOLEAN DEFAULT FALSE,
+  `status` ENUM('ACTIVE', 'INACTIVE') NOT NULL DEFAULT 'INACTIVE',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`role`) REFERENCES `Roles`(`role`) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
@@ -315,10 +313,26 @@ CREATE TABLE `Event` (
   `approved_by_id` INT NULL,
   `created_at`     DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT,
-  FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`approved_by_id`) REFERENCES `User`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`eventTypeId`) REFERENCES `EventType`(`id`) ON DELETE RESTRICT
+
+  CONSTRAINT `fk_event_user`
+    FOREIGN KEY (`userId`)
+    REFERENCES `Users`(`id`)
+    ON DELETE RESTRICT,
+
+  CONSTRAINT `fk_event_product`
+    FOREIGN KEY (`productId`)
+    REFERENCES `Product`(`id`)
+    ON DELETE CASCADE,
+
+  CONSTRAINT `fk_event_approved_by`
+    FOREIGN KEY (`approved_by_id`)
+    REFERENCES `Users`(`id`)
+    ON DELETE SET NULL,
+
+  CONSTRAINT `fk_event_event_type`
+    FOREIGN KEY (`eventTypeId`)
+    REFERENCES `EventType`(`id`)
+    ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
@@ -352,16 +366,25 @@ CREATE TABLE `Payment` (
 -- PRODUCT RATING
 -- -------------------------------------------------
 CREATE TABLE `ProductRating` (
-  `id`        INT AUTO_INCREMENT PRIMARY KEY,
-  `rating`    INT NOT NULL,
-  `review`    TEXT NULL,
-  `userId`    INT NOT NULL,
-  `productId` INT NOT NULL,
+  `id`         INT AUTO_INCREMENT PRIMARY KEY,
+  `rating`     INT NOT NULL,
+  `review`     TEXT NULL,
+  `userId`     INT NOT NULL,
+  `productId`  INT NOT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
   UNIQUE KEY `uq_user_product` (`userId`, `productId`),
-  FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`productId`) REFERENCES `Product`(`id`) ON DELETE CASCADE
+
+  CONSTRAINT `fk_rating_user`
+    FOREIGN KEY (`userId`)
+    REFERENCES `Users`(`id`)
+    ON DELETE CASCADE,
+
+  CONSTRAINT `fk_rating_product`
+    FOREIGN KEY (`productId`)
+    REFERENCES `Product`(`id`)
+    ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- -- Trigger for rating validation
@@ -382,18 +405,28 @@ CREATE TABLE `ProductRating` (
 -- -------------------------------------------------
 CREATE TABLE `Blog` (
   `id`               INT AUTO_INCREMENT PRIMARY KEY,
-  `title`            VARCHAR(255) NOT NULL UNIQUE,
-  `short_description` VARCHAR(255) NULL,
-  `image`            VARCHAR(255) NOT NULL,
+  `title`            VARCHAR(255) NOT NULL,
   `description`      TEXT NOT NULL,
-  `is_approved`      BOOLEAN NULL,
+  `image`            VARCHAR(255),
+  `status`           ENUM('PENDING', 'APPROVED', 'REJECTED') DEFAULT 'PENDING',
+
   `authorId`         INT NULL,
   `approved_by_id`   INT NULL,
+
   `created_at`       DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`authorId`) REFERENCES `User`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`approved_by_id`) REFERENCES `User`(`id`) ON DELETE SET NULL
+
+  CONSTRAINT `fk_blog_author`
+    FOREIGN KEY (`authorId`)
+    REFERENCES `Users`(`id`)
+    ON DELETE SET NULL,
+
+  CONSTRAINT `fk_blog_approved_by`
+    FOREIGN KEY (`approved_by_id`)
+    REFERENCES `Users`(`id`)
+    ON DELETE SET NULL
 ) ENGINE=InnoDB;
+
 
 -- -------------------------------------------------
 -- CONTACT US (business inquiry)

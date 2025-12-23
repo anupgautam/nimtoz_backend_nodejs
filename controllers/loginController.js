@@ -27,7 +27,7 @@ const loginUser = async (req, res) => {
           role,
           avatar,
           isVerified
-       FROM User
+       FROM Users
        WHERE phone_number = ?`,
       [phone_number]
     );

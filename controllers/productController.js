@@ -2,12 +2,11 @@
 import { productSchema, updateProductSchema } from "../utils/validationSchema.js";
 import { z } from "zod";
 import db from "../config/prisma.js"; // <-- your MySQL pool
-import { BASE_URL } from "../baseURL.js";
 
 // Helper: Execute query and return rows
 const query = async (sql, params = []) => {
-    const [rows] = await db.execute(sql, params);
-    return rows;
+  const [rows] = await db.execute(sql, params);
+  return rows;
 };
 // utils/buildFileUrl.js
 export const buildFileUrl = (filePath) => {
@@ -179,8 +178,8 @@ const getAllProducts = async (req, res) => {
 
 //! Get Booking Products (Active Venues)
 const getBookingProducts = async (req, res) => {
-    try {
-        const rows = await query(`
+  try {
+    const rows = await query(`
           SELECT 
             p.id, p.title,
             pp.price as pp_price, pp.offerPrice as pp_offer,
@@ -216,58 +215,58 @@ const getBookingProducts = async (req, res) => {
           ORDER BY p.updated_at DESC
         `);
 
-        const productsMap = new Map();
+    const productsMap = new Map();
 
-        rows.forEach((row) => {
-            if (!productsMap.has(row.id)) {
-                productsMap.set(row.id, {
-                    id: row.id,
-                    title: row.title,
-                    partypalace: [],
-                    musical: [],
-                    multimedia: [],
-                    luxury: [],
-                    meeting: [],
-                    adventure: [],
-                    beautydecor: [],
-                    entertainment: [],
-                    cateringtent: [],
-                    totalPrice: 0, // final total after deducting offerPrice
-                });
-            }
-
-            const p = productsMap.get(row.id);
-
-            const addService = (serviceId, name, price, offer, alias, colName) => {
-                if (!serviceId) return;
-                const finalPrice = price - (offer || 0); // deduct offerPrice from price
-                p[alias].push({ id: serviceId, [colName]: name, price, offerPrice: offer, finalPrice });
-                p.totalPrice += finalPrice;
-            };
-
-            addService(row.pp_id, row.partypalace_name, row.pp_price, row.pp_offer, "partypalace", "partypalace_name");
-            addService(row.mu_id, row.instrument_name, row.mu_price, row.mu_offer, "musical", "instrument_name");
-            addService(row.mm_id, row.multimedia_name, row.mm_price, row.mm_offer, "multimedia", "multimedia_name");
-            addService(row.lx_id, row.luxury_name, row.lx_price, row.lx_offer, "luxury", "luxury_name");
-            addService(row.mt_id, row.meeting_name, row.mt_price, row.mt_offer, "meeting", "meeting_name");
-            addService(row.ad_id, row.adventure_name, row.ad_price, row.ad_offer, "adventure", "adventure_name");
-            addService(row.bd_id, row.beauty_name, row.bd_price, row.bd_offer, "beautydecor", "beauty_name");
-            addService(row.en_id, row.entertainment_name, row.en_price, row.en_offer, "entertainment", "entertainment_name");
-            addService(row.ct_id, row.catering_name, row.ct_price, row.ct_offer, "cateringtent", "catering_name");
+    rows.forEach((row) => {
+      if (!productsMap.has(row.id)) {
+        productsMap.set(row.id, {
+          id: row.id,
+          title: row.title,
+          partypalace: [],
+          musical: [],
+          multimedia: [],
+          luxury: [],
+          meeting: [],
+          adventure: [],
+          beautydecor: [],
+          entertainment: [],
+          cateringtent: [],
+          totalPrice: 0, // final total after deducting offerPrice
         });
+      }
 
-        const products = Array.from(productsMap.values());
-        res.json(products);
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
+      const p = productsMap.get(row.id);
+
+      const addService = (serviceId, name, price, offer, alias, colName) => {
+        if (!serviceId) return;
+        const finalPrice = price - (offer || 0); // deduct offerPrice from price
+        p[alias].push({ id: serviceId, [colName]: name, price, offerPrice: offer, finalPrice });
+        p.totalPrice += finalPrice;
+      };
+
+      addService(row.pp_id, row.partypalace_name, row.pp_price, row.pp_offer, "partypalace", "partypalace_name");
+      addService(row.mu_id, row.instrument_name, row.mu_price, row.mu_offer, "musical", "instrument_name");
+      addService(row.mm_id, row.multimedia_name, row.mm_price, row.mm_offer, "multimedia", "multimedia_name");
+      addService(row.lx_id, row.luxury_name, row.lx_price, row.lx_offer, "luxury", "luxury_name");
+      addService(row.mt_id, row.meeting_name, row.mt_price, row.mt_offer, "meeting", "meeting_name");
+      addService(row.ad_id, row.adventure_name, row.ad_price, row.ad_offer, "adventure", "adventure_name");
+      addService(row.bd_id, row.beauty_name, row.bd_price, row.bd_offer, "beautydecor", "beauty_name");
+      addService(row.en_id, row.entertainment_name, row.en_price, row.en_offer, "entertainment", "entertainment_name");
+      addService(row.ct_id, row.catering_name, row.ct_price, row.ct_offer, "cateringtent", "catering_name");
+    });
+
+    const products = Array.from(productsMap.values());
+    res.json(products);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 };
 
 //! Get Booking Product by ID
 const getBookingProductsById = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const rows = await query(`
+  const { id } = req.params;
+  try {
+    const rows = await query(`
       SELECT 
         p.id, p.title,
         pp.id as pp_id, pp.partypalace_name, pp.price,
@@ -292,179 +291,222 @@ const getBookingProductsById = async (req, res) => {
       WHERE p.id = ?
     `, [id]);
 
-        if (rows.length === 0) return res.status(404).json({ success: false, error: `Product ${id} doesn't exist.` });
+    if (rows.length === 0) return res.status(404).json({ success: false, error: `Product ${id} doesn't exist.` });
 
-        const product = {
-            id: rows[0].id,
-            title: rows[0].title,
-            partypalace: [],
-            musical: [],
-            multimedia: [],
-            luxury: [],
-            meeting: [],
-            adventure: [],
-            beautydecor: [],
-            entertainment: [],
-            cateringtent: [],
-        };
+    const product = {
+      id: rows[0].id,
+      title: rows[0].title,
+      partypalace: [],
+      musical: [],
+      multimedia: [],
+      luxury: [],
+      meeting: [],
+      adventure: [],
+      beautydecor: [],
+      entertainment: [],
+      cateringtent: [],
+    };
 
-        rows.forEach((row) => {
-            if (row.pp_id) product.partypalace.push({ id: row.pp_id, partypalace_name: row.partypalace_name, price: row.price });
-            if (row.mu_id) product.musical.push({ id: row.mu_id, instrument_name: row.instrument_name, price: row.price });
-            if (row.mm_id) product.multimedia.push({ id: row.mm_id, multimedia_name: row.multimedia_name, price: row.price });
-            if (row.lx_id) product.luxury.push({ id: row.lx_id, luxury_name: row.luxury_name, price: row.price });
-            if (row.mt_id) product.meeting.push({ id: row.mt_id, meeting_name: row.meeting_name, price: row.price });
-            if (row.ad_id) product.adventure.push({ id: row.ad_id, adventure_name: row.adventure_name, price: row.price });
-            if (row.bd_id) product.beautydecor.push({ id: row.bd_id, beauty_name: row.beauty_name, price: row.price });
-            if (row.en_id) product.entertainment.push({ id: row.en_id, entertainment_name: row.entertainment_name, price: row.price });
-            if (row.ct_id) product.cateringtent.push({ id: row.ct_id, catering_name: row.catering_name, price: row.price });
-        });
+    rows.forEach((row) => {
+      if (row.pp_id) product.partypalace.push({ id: row.pp_id, partypalace_name: row.partypalace_name, price: row.price });
+      if (row.mu_id) product.musical.push({ id: row.mu_id, instrument_name: row.instrument_name, price: row.price });
+      if (row.mm_id) product.multimedia.push({ id: row.mm_id, multimedia_name: row.multimedia_name, price: row.price });
+      if (row.lx_id) product.luxury.push({ id: row.lx_id, luxury_name: row.luxury_name, price: row.price });
+      if (row.mt_id) product.meeting.push({ id: row.mt_id, meeting_name: row.meeting_name, price: row.price });
+      if (row.ad_id) product.adventure.push({ id: row.ad_id, adventure_name: row.adventure_name, price: row.price });
+      if (row.bd_id) product.beautydecor.push({ id: row.bd_id, beauty_name: row.beauty_name, price: row.price });
+      if (row.en_id) product.entertainment.push({ id: row.en_id, entertainment_name: row.entertainment_name, price: row.price });
+      if (row.ct_id) product.cateringtent.push({ id: row.ct_id, catering_name: row.catering_name, price: row.price });
+    });
 
-        res.json({ success: true, product });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
+    res.json({ success: true, product });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 };
 
 //! Get HomePage Products
 const getHomePageProducts = async (req, res) => {
-    try {
-        const { search = "", category = "", location: district = "" } = req.query;
+  try {
+    const { search = "", category = "", location: district = "" } = req.query;
 
-        let whereClause = "WHERE p.is_active = 1 AND v.active = 1";
-        let params = [];
+    let whereClause = "WHERE p.is_active = 1 AND v.active = 1";
+    let params = [];
 
-        if (search) {
-            whereClause += " AND p.title LIKE ?";
-            params.push(`%${search}%`);
-        }
-        if (category) {
-            whereClause += " AND c.category_name = ?";
-            params.push(category);
-        }
-        if (district) {
-            whereClause += " AND p.districtId = ?";
-            params.push(district);
-        }
-
-        const rows = await query(`
-            SELECT 
-                p.id, p.title, p.description, p.short_description, p.address, p.is_active,
-                d.id as district_id, d.district_name,
-                c.id as category_id, c.category_name,
-                v.id as business_id, v.venue_name, v.venue_address, v.contact_person, v.phone_number, v.email, v.pan_vat_number,
-                pi.id as img_id, pi.url,
-                mm.price as mm_price, mm.offerPrice as mm_offer, mm.multimedia_name,
-                en.price as en_price, en.offerPrice as en_offer, en.entertainment_name,
-                mu.price as mu_price, mu.offerPrice as mu_offer, mu.instrument_name,
-                ct.price as ct_price, ct.offerPrice as ct_offer, ct.catering_name,
-                ad.price as ad_price, ad.offerPrice as ad_offer, ad.adventure_name,
-                lx.price as lx_price, lx.offerPrice as lx_offer, lx.luxury_name,
-                mt.price as mt_price, mt.offerPrice as mt_offer, mt.meeting_name,
-                pp.price as pp_price, pp.offerPrice as pp_offer, pp.partypalace_name,
-                bd.price as bd_price, bd.offerPrice as bd_offer, bd.beauty_name
-            FROM Product p
-            JOIN Venue v ON p.businessId = v.id
-            LEFT JOIN District d ON p.districtId = d.id
-            LEFT JOIN Category c ON p.category_id = c.id
-            LEFT JOIN ProductImage pi ON p.id = pi.productId
-            LEFT JOIN Multimedia mm ON p.id = mm.productId
-            LEFT JOIN Entertainment en ON p.id = en.productId
-            LEFT JOIN Musical mu ON p.id = mu.productId
-            LEFT JOIN CateringTent ct ON p.id = ct.productId
-            LEFT JOIN Adventure ad ON p.id = ad.productId
-            LEFT JOIN Luxury lx ON p.id = lx.productId
-            LEFT JOIN Meeting mt ON p.id = mt.productId
-            LEFT JOIN PartyPalace pp ON p.id = pp.productId
-            LEFT JOIN BeautyDecor bd ON p.id = bd.productId
-            ${whereClause}
-            ORDER BY p.updated_at DESC
-        `, params);
-
-        const products = [];
-        const map = new Map();
-
-        rows.forEach((row) => {
-            if (!map.has(row.id)) {
-                map.set(row.id, {
-                    id: row.id,
-                    title: row.title,
-                    description: row.description,
-                    short_description: row.short_description,
-                    address: row.address,
-                    is_active: Boolean(row.is_active),
-                    District: row.district_id ? { id: row.district_id, district_name: row.district_name } : null,
-                    Category: row.category_id ? { id: row.category_id, category_name: row.category_name } : null,
-                    Business: row.business_id ? {
-                        id: row.business_id,
-                        venue_name: row.venue_name,
-                        venue_address: row.venue_address,
-                        contact_person: row.contact_person,
-                        phone_number: row.phone_number,
-                        email: row.email,
-                        pan_vat_number: row.pan_vat_number
-                    } : null,
-                    product_image: [],
-                    multimedia: [],
-                    entertainment: [],
-                    musical: [],
-                    cateringtent: [],
-                    adventure: [],
-                    luxury: [],
-                    meeting: [],
-                    partypalace: [],
-                    beautydecor: [],
-                });
-            }
-
-            const p = map.get(row.id);
-
-            if (row.img_id) p.product_image.push({ id: row.img_id, url: buildFileUrl(row.url) });
-            if (row.mm_price !== null) p.multimedia.push({ price: row.mm_price, offerPrice: row.mm_offer, multimedia_name: row.multimedia_name });
-            if (row.en_price !== null) p.entertainment.push({ price: row.en_price, offerPrice: row.en_offer, entertainment_name: row.entertainment_name });
-            if (row.mu_price !== null) p.musical.push({ price: row.mu_price, offerPrice: row.mu_offer, instrument_name: row.instrument_name });
-            if (row.ct_price !== null) p.cateringtent.push({ price: row.ct_price, offerPrice: row.ct_offer, catering_name: row.catering_name });
-            if (row.ad_price !== null) p.adventure.push({ price: row.ad_price, offerPrice: row.ad_offer, adventure_name: row.adventure_name });
-            if (row.lx_price !== null) p.luxury.push({ price: row.lx_price, offerPrice: row.lx_offer, luxury_name: row.luxury_name });
-            if (row.mt_price !== null) p.meeting.push({ price: row.mt_price, offerPrice: row.mt_offer, meeting_name: row.meeting_name });
-            if (row.pp_price !== null) p.partypalace.push({ price: row.pp_price, offerPrice: row.pp_offer, partypalace_name: row.partypalace_name });
-            if (row.bd_price !== null) p.beautydecor.push({ price: row.bd_price, offerPrice: row.bd_offer, beauty_name: row.beauty_name });
-        });
-
-        const result = Array.from(map.values()).map((product) => {
-            const allPrices = [
-                ...product.multimedia,
-                ...product.entertainment,
-                ...product.musical,
-                ...product.partypalace,
-                ...product.beautydecor,
-                ...product.adventure,
-                ...product.luxury,
-                ...product.cateringtent,
-                ...product.meeting,
-            ];
-
-            const minPrice = Math.min(...allPrices.map(i => i.price).filter(p => p != null), Infinity);
-            const minOfferPrice = Math.min(...allPrices.map(i => i.offerPrice).filter(p => p != null && p > 0), Infinity);
-
-            const discountPercentage = Number.isFinite(minPrice) && Number.isFinite(minOfferPrice) && minOfferPrice < minPrice
-                ? Math.round(((minPrice - minOfferPrice) / minPrice) * 100)
-                : 0;
-
-            return {
-                ...product,
-                minPrice: Number.isFinite(minPrice) ? minPrice : 0,
-                minOfferPrice: Number.isFinite(minOfferPrice) ? minOfferPrice : null,
-                discountPercentage,
-            };
-        });
-
-        res.json({ success: true, products: result });
-    } catch (error) {
-        console.error("getHomePageProducts error:", error);
-        res.status(400).json({ success: false, error: error.message });
+    if (search) {
+      whereClause += " AND p.title LIKE ?";
+      params.push(`%${search}%`);
     }
+    if (category) {
+      whereClause += " AND c.category_name = ?";
+      params.push(category);
+    }
+    if (district) {
+      whereClause += " AND p.districtId = ?";
+      params.push(district);
+    }
+
+    const rows = await query(`
+          SELECT 
+              p.id, p.title, p.description, p.short_description, p.address, p.is_active,
+              d.id as district_id, d.district_name,
+              c.id as category_id, c.category_name,
+              v.id as business_id, v.venue_name, v.venue_address, v.contact_person, v.phone_number, v.email, v.pan_vat_number,
+              pi.id as img_id, pi.url,
+              mm.price as mm_price, mm.offerPrice as mm_offer, mm.multimedia_name,
+              en.price as en_price, en.offerPrice as en_offer, en.entertainment_name,
+              mu.price as mu_price, mu.offerPrice as mu_offer, mu.instrument_name,
+              ct.price as ct_price, ct.offerPrice as ct_offer, ct.catering_name,
+              ad.price as ad_price, ad.offerPrice as ad_offer, ad.adventure_name,
+              lx.price as lx_price, lx.offerPrice as lx_offer, lx.luxury_name,
+              mt.price as mt_price, mt.offerPrice as mt_offer, mt.meeting_name,
+              pp.price as pp_price, pp.offerPrice as pp_offer, pp.partypalace_name,
+              bd.price as bd_price, bd.offerPrice as bd_offer, bd.beauty_name
+          FROM Product p
+          JOIN Venue v ON p.businessId = v.id
+          LEFT JOIN District d ON p.districtId = d.id
+          LEFT JOIN Category c ON p.category_id = c.id
+          LEFT JOIN ProductImage pi ON p.id = pi.productId
+          LEFT JOIN Multimedia mm ON p.id = mm.productId
+          LEFT JOIN Entertainment en ON p.id = en.productId
+          LEFT JOIN Musical mu ON p.id = mu.productId
+          LEFT JOIN CateringTent ct ON p.id = ct.productId
+          LEFT JOIN Adventure ad ON p.id = ad.productId
+          LEFT JOIN Luxury lx ON p.id = lx.productId
+          LEFT JOIN Meeting mt ON p.id = mt.productId
+          LEFT JOIN PartyPalace pp ON p.id = pp.productId
+          LEFT JOIN BeautyDecor bd ON p.id = bd.productId
+          ${whereClause}
+          ORDER BY p.updated_at DESC
+      `, params);
+
+    const map = new Map();
+
+    rows.forEach((row) => {
+      if (!map.has(row.id)) {
+        map.set(row.id, {
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          short_description: row.short_description,
+          address: row.address,
+          is_active: Boolean(row.is_active),
+
+          District: row.district_id
+            ? { id: row.district_id, district_name: row.district_name }
+            : null,
+
+          Category: row.category_id
+            ? { id: row.category_id, category_name: row.category_name }
+            : null,
+
+          Business: row.business_id
+            ? {
+              id: row.business_id,
+              venue_name: row.venue_name,
+              venue_address: row.venue_address,
+              contact_person: row.contact_person,
+              phone_number: row.phone_number,
+              email: row.email,
+              pan_vat_number: row.pan_vat_number,
+            }
+            : null,
+
+          product_image: [],
+          _imageIds: new Set(), // 🔹 used only for deduplication
+
+          multimedia: [],
+          entertainment: [],
+          musical: [],
+          cateringtent: [],
+          adventure: [],
+          luxury: [],
+          meeting: [],
+          partypalace: [],
+          beautydecor: [],
+        });
+      }
+
+      const p = map.get(row.id);
+
+      // ✅ FIX: prevent duplicate images
+      if (row.img_id && !p._imageIds.has(row.img_id)) {
+        p._imageIds.add(row.img_id);
+        p.product_image.push({
+          id: row.img_id,
+          url: buildFileUrl(row.url),
+        });
+      }
+
+      if (row.mm_price !== null)
+        p.multimedia.push({ price: row.mm_price, offerPrice: row.mm_offer, multimedia_name: row.multimedia_name });
+
+      if (row.en_price !== null)
+        p.entertainment.push({ price: row.en_price, offerPrice: row.en_offer, entertainment_name: row.entertainment_name });
+
+      if (row.mu_price !== null)
+        p.musical.push({ price: row.mu_price, offerPrice: row.mu_offer, instrument_name: row.instrument_name });
+
+      if (row.ct_price !== null)
+        p.cateringtent.push({ price: row.ct_price, offerPrice: row.ct_offer, catering_name: row.catering_name });
+
+      if (row.ad_price !== null)
+        p.adventure.push({ price: row.ad_price, offerPrice: row.ad_offer, adventure_name: row.adventure_name });
+
+      if (row.lx_price !== null)
+        p.luxury.push({ price: row.lx_price, offerPrice: row.lx_offer, luxury_name: row.luxury_name });
+
+      if (row.mt_price !== null)
+        p.meeting.push({ price: row.mt_price, offerPrice: row.mt_offer, meeting_name: row.meeting_name });
+
+      if (row.pp_price !== null)
+        p.partypalace.push({ price: row.pp_price, offerPrice: row.pp_offer, partypalace_name: row.partypalace_name });
+
+      if (row.bd_price !== null)
+        p.beautydecor.push({ price: row.bd_price, offerPrice: row.bd_offer, beauty_name: row.beauty_name });
+    });
+
+    const result = Array.from(map.values()).map((product) => {
+      const allPrices = [
+        ...product.multimedia,
+        ...product.entertainment,
+        ...product.musical,
+        ...product.partypalace,
+        ...product.beautydecor,
+        ...product.adventure,
+        ...product.luxury,
+        ...product.cateringtent,
+        ...product.meeting,
+      ];
+
+      const minPrice = Math.min(...allPrices.map(i => i.price).filter(p => p != null), Infinity);
+      const minOfferPrice = Math.min(...allPrices.map(i => i.offerPrice).filter(p => p != null && p > 0), Infinity);
+
+      const discountPercentage =
+        Number.isFinite(minPrice) &&
+          Number.isFinite(minOfferPrice) &&
+          minOfferPrice < minPrice
+          ? Math.round(((minPrice - minOfferPrice) / minPrice) * 100)
+          : 0;
+
+      // 🔹 cleanup internal helper
+      delete product._imageIds;
+
+      return {
+        ...product,
+        minPrice: Number.isFinite(minPrice) ? minPrice : 0,
+        minOfferPrice: Number.isFinite(minOfferPrice) ? minOfferPrice : null,
+        discountPercentage,
+      };
+    });
+
+    res.json({ success: true, products: result });
+  } catch (error) {
+    console.error("getHomePageProducts error:", error);
+    res.status(400).json({ success: false, error: error.message });
+  }
 };
+
 
 //! Get Product by ID
 const getProductById = async (req, res) => {
@@ -505,14 +547,14 @@ const getProductById = async (req, res) => {
       Category: row.category_id ? { id: row.category_id, category_name: row.category_name } : null,
       Business: row.business_id
         ? {
-            id: row.business_id,
-            venue_name: row.venue_name,
-            venue_address: row.venue_address,
-            contact_person: row.contact_person,
-            phone_number: row.phone_number,
-            email: row.email,
-            pan_vat_number: row.pan_vat_number,
-          }
+          id: row.business_id,
+          venue_name: row.venue_name,
+          venue_address: row.venue_address,
+          contact_person: row.contact_person,
+          phone_number: row.phone_number,
+          email: row.email,
+          pan_vat_number: row.pan_vat_number,
+        }
         : null,
       product_image: [],
       partypalace: [],
@@ -575,36 +617,36 @@ const getProductById = async (req, res) => {
 
 //! Get Product Images by ID
 const getProductImagesById = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const images = await query(
-            `SELECT id, url FROM ProductImage WHERE productId = ?`,
-            [id]
-        );
+  const { id } = req.params;
+  try {
+    const images = await query(
+      `SELECT id, url FROM ProductImage WHERE productId = ?`,
+      [id]
+    );
 
-        const formattedImages = images.map(img => ({
-            id: img.id,
-            url: buildFileUrl(img.url), // prepend BASE_URL
-        }));
+    const formattedImages = images.map(img => ({
+      id: img.id,
+      url: buildFileUrl(img.url), // prepend BASE_URL
+    }));
 
-        res.json({ success: true, product: formattedImages });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
+    res.json({ success: true, product: formattedImages });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 };
 
 //! Delete Product by ID
 const deleteProductById = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const [result] = await db.execute(`DELETE FROM Product WHERE id = ?`, [id]);
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ success: false, error: `Product with ID ${id} does not exist` });
-        }
-        res.json({ success: true, message: "Product Deleted" });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+  const { id } = req.params;
+  try {
+    const [result] = await db.execute(`DELETE FROM Product WHERE id = ?`, [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, error: `Product with ID ${id} does not exist` });
     }
+    res.json({ success: true, message: "Product Deleted" });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 };
 
 // Helper to safely parse JSON arrays
@@ -731,14 +773,14 @@ const createProduct = async (req, res) => {
       Category: row.category_id ? { id: row.category_id, category_name: row.category_name } : null,
       Business: row.business_id
         ? {
-            id: row.business_id,
-            venue_name: row.venue_name,
-            venue_address: row.venue_address,
-            contact_person: row.contact_person,
-            phone_number: row.phone_number,
-            email: row.email,
-            pan_vat_number: row.pan_vat_number,
-          }
+          id: row.business_id,
+          venue_name: row.venue_name,
+          venue_address: row.venue_address,
+          contact_person: row.contact_person,
+          phone_number: row.phone_number,
+          email: row.email,
+          pan_vat_number: row.pan_vat_number,
+        }
         : null,
       product_image: productImages.map(img => ({ url: img.url })),
       partypalace: parsedData.partypalace,
@@ -925,13 +967,13 @@ const updateProduct = async (req, res) => {
   }
 };
 export {
-    getAllProducts,
-    getProductById,
-    getProductImagesById,
-    getBookingProducts,
-    getHomePageProducts,
-    getBookingProductsById,
-    deleteProductById,
-    createProduct,
-    updateProduct,
+  getAllProducts,
+  getProductById,
+  getProductImagesById,
+  getBookingProducts,
+  getHomePageProducts,
+  getBookingProductsById,
+  deleteProductById,
+  createProduct,
+  updateProduct,
 };

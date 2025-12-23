@@ -11,7 +11,7 @@ const verifyOTP = async (req, res) => {
   try {
     // Find user by email
     const [users] = await db.execute(
-      `SELECT id, isVerified, otp, otpExpiresAt FROM User WHERE email = ?`,
+      `SELECT id, isVerified, otp, otpExpiresAt FROM Users WHERE email = ?`,
       [email]
     );
 
@@ -33,7 +33,7 @@ const verifyOTP = async (req, res) => {
 
     // Mark as verified and clear OTP
     await db.execute(
-      `UPDATE User 
+      `UPDATE Users
        SET isVerified = 1, otp = NULL, otpExpiresAt = NULL 
        WHERE id = ?`,
       [user.id]

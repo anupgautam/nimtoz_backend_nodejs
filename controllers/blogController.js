@@ -1,5 +1,4 @@
 // controllers/blogController.js
-import { BASE_URL } from "../baseURL.js";
 import db from "../config/prisma.js";
 import { blogSchema } from "../utils/validationSchema.js";
 import { z } from "zod";
@@ -34,7 +33,7 @@ const getAllBlogs = async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM Blog b
-      LEFT JOIN User u ON b.authorId = u.id
+      LEFT JOIN Users u ON b.authorId = u.id
       ${whereClause}
     `;
     const [countResult] = await db.execute(countQuery, params);
@@ -50,7 +49,7 @@ const getAllBlogs = async (req, res) => {
         u.email as author_email,
         u.avatar as author_avatar
       FROM Blog b
-      LEFT JOIN User u ON b.authorId = u.id
+      LEFT JOIN Users u ON b.authorId = u.id
       ${whereClause}
       ORDER BY b.updated_at DESC
       LIMIT ? OFFSET ?
@@ -121,7 +120,7 @@ const getBlogById = async (req, res) => {
          u.email as author_email,
          u.avatar as author_avatar
        FROM Blog b
-       LEFT JOIN User u ON b.authorId = u.id
+       LEFT JOIN Users u ON b.authorId = u.id
        WHERE b.id = ?`,
             [id]
         );
@@ -302,7 +301,7 @@ const updateBlog = async (req, res) => {
         u.email AS author_email,
         u.avatar AS author_avatar
       FROM Blog b
-      LEFT JOIN User u ON b.authorId = u.id
+      LEFT JOIN Users u ON b.authorId = u.id
       WHERE b.id = ?`,
       [id]
     );

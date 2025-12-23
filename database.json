@@ -1,11 +1,10 @@
 {
     "dev" : {
-"driver" : "mysql",
-"user" : "nimtozco_nimtozco",
-"host" : "my.hosteditor.com",
-"password" : "Office@0977",
-"database": "nimtozco_nimtoz",
-"port" : "3306"
-
+    "driver" : "mysql",
+    "user" : "nimtozc1_nimtozco",
+    "host" : "190.92.174.30",
+    "password" : "Office@0977",
+    "database": "nimtozc1_nimtoz",
+    "port" : "3306"
     } 
 }
