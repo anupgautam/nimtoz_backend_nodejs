@@ -28,11 +28,12 @@ export const buildFileUrl = (filePath) => {
 //! Get All Products
 const getAllProducts = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10, filter } = req.query; // added filter
+    const { search, page = 1, limit = 10, filter } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const take = parseInt(limit);
 
-    let whereClause = "WHERE p.is_active = 1"; // only active products
+    // Remove the is_active filter to include both active and inactive products
+    let whereClause = "WHERE 1=1"; // Always true, so all products are included
     const params = [];
 
     // Search filter
@@ -181,6 +182,7 @@ const getAllProducts = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
 
 
 //! Get Booking Products (Active Venues)
