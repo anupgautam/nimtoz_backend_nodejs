@@ -90,7 +90,6 @@ const getAllBookings = async (req, res) => {
     const take = parseInt(limit);
     const offset = (parseInt(page) - 1) * take;
 
-
     /* ------------------ WHERE BUILDER ------------------ */
     let conditions = [];
     let params = [];
@@ -98,8 +97,8 @@ const getAllBookings = async (req, res) => {
     // 🔍 SEARCH
     if (search) {
       const searchTerm = `%${search.toLowerCase()}%`;
-      conditions.push(`(LOWER(c.category_name) LIKE ? OR LOWER(p.title) LIKE ?)`);
-      params.push(searchTerm, searchTerm);
+      conditions.push(`(LOWER(c.category_name) LIKE ? OR LOWER(p.title) LIKE ? OR LOWER(v.venue_name) LIKE ? OR LOWER(u.firstname) LIKE ? OR LOWER(u.lastname) LIKE ?)`);
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     // 📅 MONTH + YEAR
@@ -128,6 +127,7 @@ const getAllBookings = async (req, res) => {
       JOIN Category c ON p.category_id = c.id
       JOIN Users u ON e.userId = u.id
       JOIN EventType et ON e.eventTypeId = et.id
+      JOIN Venue v ON p.businessId = v.id
       ${whereClause}
     `;
     const [countResult] = await db.execute(countQuery, params);
@@ -137,13 +137,30 @@ const getAllBookings = async (req, res) => {
     const bookingsQuery = `
       SELECT 
         e.id, e.start_date, e.end_date, e.start_time, e.end_time,
-        e.is_approved, e.total_price,
+        e.is_approved, e.total_price, e.created_at, e.updated_at,
 
+        -- 🧍 USER DETAILS
         u.id as user_id, u.firstname, u.lastname, u.email as user_email,
-        p.id as product_id, p.title as product_title, p.address,
+        u.phone_number as user_phone, u.avatar as user_avatar, 
+        u.role as user_role, u.status as user_status, u.isVerified as user_verified,
+        u.created_at as user_created_at, u.updated_at as user_updated_at,
+
+        -- 🏢 BUSINESS (VENUE) DETAILS
+        v.id as business_id, v.venue_name, v.venue_address, v.contact_person, 
+        v.phone_number as business_phone, v.email as business_email, 
+        v.pan_vat_number, v.active as business_active, 
+        v.created_at as business_created_at, v.updated_at as business_updated_at,
+
+        -- 🏠 PRODUCT DETAILS
+        p.id as product_id, p.title as product_title, p.address, 
+        p.short_description, p.description, p.is_active, 
+        p.overall_rating, p.created_at as product_created_at, p.updated_at as product_updated_at,
+
         c.category_name,
         et.id as eventtype_id, et.title as eventtype_name,
+        d.id as district_id, d.district_name,
 
+        -- 🎯 SERVICES
         mm.id as mm_id, mm.multimedia_name, mm.price as mm_price, mm.offerPrice as mm_offerPrice,
         mus.id as mus_id, mus.instrument_name, mus.price as mus_price, mus.offerPrice as mus_offerPrice,
         lux.id as lux_id, lux.luxury_name, lux.price as lux_price, lux.offerPrice as lux_offerPrice,
@@ -159,6 +176,8 @@ const getAllBookings = async (req, res) => {
       JOIN Product p ON e.productId = p.id
       JOIN Category c ON p.category_id = c.id
       JOIN EventType et ON e.eventTypeId = et.id
+      JOIN Venue v ON p.businessId = v.id
+      JOIN District d ON p.districtId = d.id
 
       LEFT JOIN EventMultimedia emm ON emm.eventId = e.id
       LEFT JOIN Multimedia mm ON mm.id = emm.multimediaId
@@ -212,22 +231,63 @@ const getAllBookings = async (req, res) => {
           end_time: row.end_time,
           is_approved: row.is_approved,
           total_price: row.total_price,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+
+          // 🧍 USER DETAILS
           user: {
             id: row.user_id,
             firstname: row.firstname,
             lastname: row.lastname,
             email: row.user_email,
+            phone_number: row.user_phone,
+            avatar: row.user_avatar,
+            role: row.user_role,
+            status: row.user_status,
+            isVerified: row.user_verified,
+            created_at: row.user_created_at,
+            updated_at: row.user_updated_at,
           },
+
+          // 🏢 BUSINESS DETAILS
+          business: {
+            id: row.business_id,
+            venue_name: row.venue_name,
+            venue_address: row.venue_address,
+            contact_person: row.contact_person,
+            phone_number: row.business_phone,
+            email: row.business_email,
+            pan_vat_number: row.pan_vat_number,
+            active: row.business_active,
+            created_at: row.business_created_at,
+            updated_at: row.business_updated_at,
+          },
+
+          // 🏠 PRODUCT DETAILS
           product: {
             id: row.product_id,
             title: row.product_title,
             address: row.address,
+            description: row.description,
+            short_description: row.short_description,
             category_name: row.category_name,
+            overall_rating: row.overall_rating,
+            is_active: row.is_active,
+            created_at: row.product_created_at,
+            updated_at: row.product_updated_at,
+            district: {
+              id: row.district_id,
+              name: row.district_name,
+            },
           },
+
+          // 📅 EVENT TYPE
           eventType: {
             id: row.eventtype_id,
             name: row.eventtype_name,
           },
+
+          // 🧩 SERVICES
           services: {
             Multimedia: [],
             Musical: [],
@@ -270,6 +330,8 @@ const getAllBookings = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+
 
 
 
@@ -497,6 +559,73 @@ const deleteBookingById = async (req, res) => {
   }
 };
 
+const formatDateTime = (date, time) => {
+  const d = new Date(date);
+  const t = new Date(time);
+  const dateStr = d.toISOString().split("T")[0]; // YYYY-MM-DD
+  const timeStr = t.toTimeString().split(" ")[0].slice(0, 5); // HH:mm
+  return { dateStr, timeStr };
+};
+
+// ✅ Helper 1: Send Booking Approved SMS to User
+const sendBookingApprovedSMS = async (phone, booking, serviceNames) => {
+  const apiKey = process.env.SMS_API_KEY;
+  const senderId = "FSN_Alert";
+
+  const { start_date, end_date, start_time, end_time } = booking;
+
+  const message = `Hello ${booking.firstname},
+Your booking for "${booking.product_title}" has been APPROVED ✅.
+
+📅 From: ${start_date} ${start_time}
+📅 To: ${end_date} ${end_time}
+
+Booked Service: ${serviceNames}
+Total: Rs. ${booking.total_price}
+
+Thank you for choosing us!`;
+
+  try {
+    const url = `https://samayasms.com.np/smsapi/index?key=${apiKey}&contacts=${phone}&senderid=${senderId}&msg=${encodeURIComponent(
+      message
+    )}&responsetype=json`;
+    const response = await axios.get(url);
+    return response.data;
+  } catch (error) {
+    console.error("User SMS send failed:", error.message);
+  }
+};
+
+// ✅ Helper 2: Send Booking Notification to Business (Venue)
+const sendBookingNotificationToBusiness = async (phone, booking, serviceNames) => {
+  const apiKey = process.env.SMS_API_KEY;
+  const senderId = "FSN_Alert";
+
+  const { start_date, end_date, start_time, end_time } = booking;
+
+  const message = `Hello ${booking.venue_name},
+Your service "${booking.product_title}" has been BOOKED 🗓️.
+
+📅 From: ${start_date} ${start_time}
+📅 To: ${end_date} ${end_time}
+
+Booked Service: ${serviceNames}
+Customer: ${booking.firstname} ${booking.lastname}
+Total: Rs. ${booking.total_price}
+
+Please check your dashboard for details.`;
+
+  try {
+    const url = `https://samayasms.com.np/smsapi/index?key=${apiKey}&contacts=${phone}&senderid=${senderId}&msg=${encodeURIComponent(
+      message
+    )}&responsetype=json`;
+    const response = await axios.get(url);
+    return response.data;
+  } catch (error) {
+    console.error("Business SMS send failed:", error.message);
+  }
+};
+
 //! Create Booking
 const createBooking = async (req, res) => {
   const {
@@ -520,19 +649,42 @@ const createBooking = async (req, res) => {
       });
     }
 
+    // 🧍 Check user status
+    const [[user]] = await db.execute(
+      `SELECT firstname, lastname, phone_number, status FROM Users WHERE id = ?`,
+      [userId]
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    if (user.status === "INACTIVE") {
+      return res.status(400).json({
+        success: false,
+        error: "Inactive users are not allowed to create bookings.",
+      });
+    }
+
     const startDate = new Date(start_date);
     const endDate = new Date(end_date);
     const combinedStartTime = combineDateAndTime(start_date, start_time);
     const combinedEndTime = combineDateAndTime(end_date, end_time);
 
-    // 🔹 AUTO APPROVAL LOGIC (ONLY CHANGE)
+    // 🔹 AUTO APPROVAL LOGIC
     const isApproved = req.user.role === "ADMIN" ? 1 : 1;
 
-    // ✅ Verify product exists
+    // ✅ Verify product + business info
     const [[product]] = await db.execute(
-      `SELECT p.title, c.category_name
+      `SELECT 
+         p.title, p.businessId, c.category_name,
+         v.venue_name, v.phone_number AS business_phone
        FROM Product p
        JOIN Category c ON p.category_id = c.id
+       JOIN Venue v ON p.businessId = v.id
        WHERE p.id = ?`,
       [productId]
     );
@@ -591,7 +743,7 @@ const createBooking = async (req, res) => {
         userId,
         productId,
         finalEventTypeId,
-        isApproved, // ✅ ADMIN → 1, others → 0
+        isApproved,
       ]
     );
 
@@ -611,7 +763,7 @@ const createBooking = async (req, res) => {
     ];
 
     let totalPrice = 0;
-    const servicesResult = {};
+    const serviceNames = [];
 
     for (const { table, column, nameColumn } of serviceTables) {
       const selectedIds = selectedServices[table] || [];
@@ -627,6 +779,7 @@ const createBooking = async (req, res) => {
 
       for (const s of services) {
         totalPrice += (s.price || 0) - (s.offerPrice || 0);
+        if (s.name) serviceNames.push(s.name);
       }
 
       const junctionTable = `Event${table}`;
@@ -637,8 +790,6 @@ const createBooking = async (req, res) => {
         `INSERT INTO ${junctionTable} (eventId, ${column}) VALUES ${values}`,
         params
       );
-
-      servicesResult[table] = services;
     }
 
     // 💰 Update total price
@@ -647,42 +798,48 @@ const createBooking = async (req, res) => {
       [totalPrice, eventId]
     );
 
+    // 📲 SEND SMS (to user & business)
+    const serviceNamesStr =
+      serviceNames.length > 0 ? serviceNames.join(", ") : product.title;
+
+    const booking = {
+      firstname: user.firstname,
+      lastname: user.lastname,
+      product_title: product.title,
+      total_price: totalPrice,
+      venue_name: product.venue_name,
+      start_date,
+      end_date,
+      start_time,
+      end_time,
+    };
+
+    // ✅ Send SMS to User
+    if ((isApproved === 1 || isApproved === true) && process.env.SMS_API_KEY && user.phone_number) {
+      await sendBookingApprovedSMS(user.phone_number, booking, serviceNamesStr);
+    } else {
+      console.warn("⚠️ SMS skipped (user SMS missing phone/API key)");
+    }
+
+    // ✅ Send SMS to Business
+    if (process.env.SMS_API_KEY && product.business_phone) {
+      await sendBookingNotificationToBusiness(product.business_phone, booking, serviceNamesStr);
+    } else {
+      console.warn("⚠️ SMS skipped (business SMS missing phone/API key)");
+    }
+
     return res.status(201).json({
       success: true,
       bookingId: eventId,
       is_approved: isApproved,
+      message: "Booking created successfully and SMS sent to user & business",
     });
-
   } catch (error) {
     console.error("createBooking error:", error);
     return res.status(500).json({
       success: false,
       error: error.message,
     });
-  }
-};
-
-const sendBookingApprovedSMS = async (phone, booking, serviceNames) => {
-  const apiKey = process.env.SMS_API_KEY;
-  const senderId = "FSN_Alert";
-
-  const message = `Hello ${booking.firstname},
-Your booking for "${booking.product_title}" has been APPROVED ✅.
-
-Booked Service: ${serviceNames}
-Total: Rs. ${booking.total_price}
-
-Thank you for choosing us!`;
-
-  try {
-    const url = `https://samayasms.com.np/smsapi/index?key=${apiKey}&contacts=${phone}&senderid=${senderId}&msg=${encodeURIComponent(
-      message
-    )}&responsetype=json`;
-
-    const response = await axios.get(url);
-    return response.data;
-  } catch (error) {
-    console.error("SMS send failed:", error.message);
   }
 };
 

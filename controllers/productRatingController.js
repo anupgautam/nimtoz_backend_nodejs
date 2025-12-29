@@ -22,6 +22,14 @@ const addOrUpdateRating = async (req, res) => {
     const validatedData = ratingSchema.parse(req.body);
     const { productId, userId, rating, review } = validatedData;
 
+    const [[user]] = await db.execute(`SELECT status FROM Users WHERE id = ?`, [userId]);
+    if (user.status === "INACTIVE") {
+      return res.status(400).json({
+        success: false,
+        error: "Inactive users are not allowed for rating.",
+      });
+    }
+
     // UPSERT using ON DUPLICATE KEY UPDATE
     await db.execute(
       `INSERT INTO ProductRating (userId, productId, rating, review, created_at, updated_at)
@@ -79,20 +87,32 @@ const getProductRatings = async (req, res) => {
       return res.status(400).json({ success: false, error: "Invalid productId" });
     }
 
+    // 🧾 Fetch all ratings with user name (firstname + lastname)
     const ratings = await query(
-      `SELECT * FROM ProductRating WHERE productId = ? ORDER BY created_at DESC`,
+      `SELECT 
+         pr.*,
+         CONCAT(u.firstname, ' ', u.lastname) AS name
+       FROM ProductRating pr
+       JOIN Users u ON pr.userId = u.id
+       WHERE pr.productId = ?
+       ORDER BY pr.created_at DESC`,
       [productId]
     );
 
+    // ⭐ Calculate average rating
     const [avgRows] = await db.execute(
       `SELECT AVG(rating) as avgRating FROM ProductRating WHERE productId = ?`,
       [productId]
     );
-    const overallRating = avgRows[0].avgRating ? parseFloat(avgRows[0].avgRating).toFixed(2) : 0;
 
+    const overallRating = avgRows[0].avgRating
+      ? parseFloat(avgRows[0].avgRating).toFixed(2)
+      : 0;
+
+    // ✅ Response
     res.status(200).json({
       success: true,
-      ratings,
+      ratings, // includes `name` for each user
       overall_rating: parseFloat(overallRating),
     });
   } catch (error) {
@@ -124,7 +144,7 @@ const getAllRatings = async (req, res) => {
           pr.created_at,
           pr.updated_at
        FROM ProductRating pr
-       JOIN User u ON pr.userId = u.id
+       JOIN Users u ON pr.userId = u.id
        JOIN Product p ON pr.productId = p.id
        ORDER BY pr.created_at DESC`
     );
