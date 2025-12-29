@@ -12,6 +12,7 @@ import path from "path";
 import { customLogger } from "./middleware/morganLogger.js";
 import corsOptions from "./config/corsOptions.js";
 import { globalErrorHandler } from "./middleware/globalErrorHandler.js";
+import { downloadEventsExcel, getAllProductsForBooking } from "./controllers/excelBookingController.js";
 
 //! Routes
 import category from "./routes/api/category.js";
@@ -102,6 +103,9 @@ app.use("/product/:id", updateProduct);
 app.use("/stat-blogs", getStatBlogs);
 app.use("/mybookings", mybookings);
 app.use("/payment", payment);
+
+app.post('/booking-excel', downloadEventsExcel)
+app.get('/optionsproducts', getAllProductsForBooking)
 
 //! Base route (homepage showing all endpoints)
 app.get("/", (req, res) => {

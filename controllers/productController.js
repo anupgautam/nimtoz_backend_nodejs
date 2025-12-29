@@ -2,51 +2,57 @@
 import { productSchema, updateProductSchema } from "../utils/validationSchema.js";
 import { z } from "zod";
 import db from "../config/prisma.js"; // <-- your MySQL pool
+import { BASE_URL } from "../baseUrl.js";
 
 // Helper: Execute query and return rows
 const query = async (sql, params = []) => {
   const [rows] = await db.execute(sql, params);
   return rows;
 };
+
 // utils/buildFileUrl.js
 export const buildFileUrl = (filePath) => {
   if (!filePath) return null;
 
-  // If the path is an object with url property
   if (typeof filePath === "object" && filePath.url) {
     filePath = filePath.url;
   }
 
-  // Ensure it's a string
   filePath = String(filePath);
 
-  // Return full URL
   return filePath.startsWith("http")
     ? filePath
     : `${BASE_URL.replace(/\/$/, "")}/${filePath.replace(/^\/+/, "")}`;
 };
 
-//! Get All Products 
+//! Get All Products
 const getAllProducts = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10 } = req.query;
+    const { search, page = 1, limit = 10, filter } = req.query; // added filter
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const take = parseInt(limit);
 
-    let whereClause = "";
+    let whereClause = "WHERE p.is_active = 1"; // only active products
     const params = [];
 
+    // Search filter
     if (search) {
       const term = `%${search.toLowerCase()}%`;
-      whereClause = `WHERE LOWER(p.title) LIKE ? OR LOWER(p.address) LIKE ? OR LOWER(d.district_name) LIKE ?`;
+      whereClause += ` AND (LOWER(p.title) LIKE ? OR LOWER(p.address) LIKE ? OR LOWER(d.district_name) LIKE ?)`;
       params.push(term, term, term);
+    }
+
+    // Business filter
+    if (filter) {
+      whereClause += ` AND p.businessId = ?`;
+      params.push(filter);
     }
 
     // Count total products
     const countQuery = `
       SELECT COUNT(*) as total 
-      FROM Product p 
-      LEFT JOIN District d ON p.districtId = d.id 
+      FROM Product p
+      LEFT JOIN District d ON p.districtId = d.id
       ${whereClause}
     `;
     const [countResult] = await db.execute(countQuery, params);
@@ -122,7 +128,7 @@ const getAllProducts = async (req, res) => {
       });
     }
 
-    // Utility function to fetch service data including Multimedia
+    // Utility to fetch service data
     const fetchService = async (table, nameCol, alias) => {
       const [rows] = await db.execute(
         `SELECT id, ${nameCol} AS name, price, offerPrice, description, productId 
@@ -175,6 +181,7 @@ const getAllProducts = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
 
 //! Get Booking Products (Active Venues)
 const getBookingProducts = async (req, res) => {
@@ -807,12 +814,12 @@ const updateProduct = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Handle uploaded files (convert path to forward slashes)
+    // ------------------- Handle uploaded files -------------------
     const uploadedFiles = req.files?.length
       ? req.files.map(file => ({ url: file.path.replace(/\\/g, "/") }))
       : [];
 
-    // Handle existing images from body (preserve if unchanged)
+    // Handle existing images from body
     let existingImages = [];
     if (req.body.product_image) {
       const normalizeImage = img => {
@@ -829,12 +836,11 @@ const updateProduct = async (req, res) => {
       }
     }
 
-    // Merge uploaded + existing (without duplicates)
     const allImages = [...existingImages, ...uploadedFiles].filter(
       (img, index, self) => index === self.findIndex(t => t.url === img.url)
     );
 
-    // Safely parse JSON-like fields (arrays of objects)
+    // ------------------- Parse JSON fields -------------------
     const parseField = field => {
       try {
         return typeof field === "string" ? JSON.parse(field) : field || [];
@@ -843,7 +849,6 @@ const updateProduct = async (req, res) => {
       }
     };
 
-    // Prepare parsed data
     const parsedData = {
       title: req.body.title,
       description: req.body.description,
@@ -864,16 +869,29 @@ const updateProduct = async (req, res) => {
       cateringtent: parseField(req.body.cateringtent),
     };
 
-    // Bulk insert helper
-    const bulkInsert = async (table, columns, rows) => {
-      if (!rows || rows.length === 0) return;
-      const placeholders = rows.map(() => `(${columns.map(() => "?").join(",")})`).join(",");
-      const values = rows.flat();
-      const sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES ${placeholders}`;
-      await db.execute(sql, values);
-    };
+    // ------------------- Update Product Images -------------------
+    if (uploadedFiles.length > 0 || req.body.product_image) {
+      // Get existing images from DB
+      const [existingRows] = await db.execute(`SELECT id, url FROM ProductImage WHERE productId = ?`, [id]);
+      const existingUrls = existingRows.map(r => r.url);
 
-    // Delete and re-insert related data conditionally
+      // Delete removed images
+      const toDelete = existingRows.filter(r => !allImages.find(img => img.url === r.url));
+      if (toDelete.length > 0) {
+        await db.execute(`DELETE FROM ProductImage WHERE id IN (${toDelete.map(r => r.id).join(",")})`);
+      }
+
+      // Insert new images only
+      const newImages = allImages.filter(img => !existingUrls.includes(img.url));
+      if (newImages.length > 0) {
+        const imgRows = newImages.map(img => [img.url, id]);
+        const placeholders = imgRows.map(() => "(?, ?)").join(",");
+        const values = imgRows.flat();
+        await db.execute(`INSERT INTO ProductImage (url, productId) VALUES ${placeholders}`, values);
+      }
+    }
+
+    // ------------------- Update Services -------------------
     const serviceTables = [
       "Multimedia",
       "Musical",
@@ -886,19 +904,6 @@ const updateProduct = async (req, res) => {
       "CateringTent",
     ];
 
-    // Only delete and re-insert images if changed
-    if (uploadedFiles.length > 0 || req.body.product_image) {
-      await db.execute(`DELETE FROM ProductImage WHERE productId = ?`, [id]);
-      if (allImages.length > 0) {
-        const imgRows = allImages.map(img => [img.url, id]);
-        await bulkInsert("ProductImage", ["url", "productId"], imgRows);
-      }
-    }
-
-    // Delete old service rows
-    await Promise.all(serviceTables.map(table => db.execute(`DELETE FROM ${table} WHERE productId = ?`, [id])));
-
-    // Re-insert services
     const tableMap = {
       Multimedia: "multimedia_name",
       Musical: "instrument_name",
@@ -911,36 +916,47 @@ const updateProduct = async (req, res) => {
       CateringTent: "catering_name",
     };
 
-    const insertService = async (data, table) => {
+    const updateOrInsertService = async (data, table) => {
       if (!data || data.length === 0) return;
-
       const nameCol = tableMap[table];
-      const validRows = data
-        .filter(item => item[nameCol] || item.name)
-        .map(item => [
-          item[nameCol] || item.name,
-          item.price ?? null,
-          item.offerPrice ?? null,
-          item.description ?? null,
-          id,
-        ]);
 
-      if (validRows.length > 0) {
-        await bulkInsert(
-          table,
-          [nameCol, "price", "offerPrice", "description", "productId"],
-          validRows
-        );
+      // Get existing rows
+      const [existingRows] = await db.execute(`SELECT id, ${nameCol} FROM ${table} WHERE productId = ?`, [id]);
+
+      for (let item of data) {
+        const name = item[nameCol] || item.name;
+        const price = item.price ?? null;
+        const offerPrice = item.offerPrice ?? null;
+        const description = item.description ?? null;
+
+        // Check if it exists
+        const existing = existingRows.find(r => r[nameCol] === name);
+        if (existing) {
+          // Update existing
+          await db.execute(
+            `UPDATE ${table} SET price = ?, offerPrice = ?, description = ? WHERE id = ?`,
+            [price, offerPrice, description, existing.id]
+          );
+        } else {
+          // Insert new
+          await db.execute(
+            `INSERT INTO ${table} (${nameCol}, price, offerPrice, description, productId) VALUES (?, ?, ?, ?, ?)`,
+            [name, price, offerPrice, description, id]
+          );
+        }
+      }
+
+      // Delete removed rows
+      const dataNames = data.map(item => item[nameCol] || item.name);
+      const toDelete = existingRows.filter(r => !dataNames.includes(r[nameCol]));
+      if (toDelete.length > 0) {
+        await db.execute(`DELETE FROM ${table} WHERE id IN (${toDelete.map(r => r.id).join(",")})`);
       }
     };
 
-    await Promise.all(
-      Object.keys(tableMap).map(table =>
-        insertService(parsedData[table.toLowerCase()] || [], table)
-      )
-    );
+    await Promise.all(serviceTables.map(table => updateOrInsertService(parsedData[table.toLowerCase()] || [], table)));
 
-    // Update main product info
+    // ------------------- Update Main Product -------------------
     await db.execute(
       `UPDATE Product 
        SET title = ?, description = ?, short_description = ?, address = ?, 
@@ -966,6 +982,7 @@ const updateProduct = async (req, res) => {
     res.status(400).json({ success: false, error: error.message });
   }
 };
+
 export {
   getAllProducts,
   getProductById,

@@ -164,18 +164,49 @@ const getBusinessById = async (req, res) => {
 //! Delete Business by ID
 const deleteBusinessById = async (req, res) => {
     const { id } = req.params;
+
     try {
+        // 1️⃣ Check if any products exist for this business
+        const [products] = await db.execute(
+            `SELECT COUNT(*) AS count FROM Product WHERE businessId = ?`,
+            [id]
+        );
+        if (products[0].count > 0) {
+            return res.status(400).json({
+                success: false,
+                error: `Cannot delete business with ID ${id} because it has associated products`,
+            });
+        }
+
+        // 2️⃣ Check if any events exist for this business
+        const [events] = await db.execute(
+            `SELECT COUNT(e.id) AS count
+         FROM Event e
+         JOIN Product p ON e.productId = p.id
+         WHERE p.businessId = ?`,
+            [id]
+        );
+        if (events[0].count > 0) {
+            return res.status(400).json({
+                success: false,
+                error: `Cannot delete business with ID ${id} because it has associated bookings/events`,
+            });
+        }
+
+        // 3️⃣ Delete the business
         const [result] = await db.execute(`DELETE FROM Venue WHERE id = ?`, [id]);
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ success: false, error: `Business with ID ${id} does not exist` });
         }
 
-        res.json({ success: true, message: "Business Deleted" });
+        res.json({ success: true, message: "Business deleted successfully" });
     } catch (error) {
+        console.error("deleteBusinessById error:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };
+
 
 //! Create Business
 const createBusiness = async (req, res) => {

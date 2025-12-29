@@ -24,6 +24,7 @@
     "db-migrate-mysql": "^3.0.0",
     "dotenv": "^16.4.5",
     "esbuild": "^0.24.0",
+    "exceljs": "^4.4.0",
     "express": "^4.21.1",
     "jsonwebtoken": "^9.0.2",
     "moment": "^2.30.1",

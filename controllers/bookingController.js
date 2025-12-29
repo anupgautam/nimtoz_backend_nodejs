@@ -2,18 +2,19 @@ import nodemailer from "nodemailer";
 import { createBookingSchema } from "../utils/validationSchema.js";
 import { addMonths, startOfMonth, endOfMonth, format } from "date-fns";
 import { z } from "zod";
-import db from "../config/prisma.js"; 
+import db from "../config/prisma.js";
+import axios from "axios";
 
 const categoryMap = {
-    PartyPalace: "PartyPalace",
-    CateringTent: "CateringTent",
-    Adventure: "Adventure",
-    BeautyDecor: "BeautyDecor",
-    Meeting: "Meeting",
-    Entertainment: "Entertainment",
-    Luxury: "Luxury",
-    Musical: "Musical",
-    Multimedia: "Multimedia",
+  PartyPalace: "PartyPalace",
+  CateringTent: "CateringTent",
+  Adventure: "Adventure",
+  BeautyDecor: "BeautyDecor",
+  Meeting: "Meeting",
+  Entertainment: "Entertainment",
+  Luxury: "Luxury",
+  Musical: "Musical",
+  Multimedia: "Multimedia",
 };
 
 // const transporter = nodemailer.createTransport({
@@ -35,40 +36,40 @@ const transporter = nodemailer.createTransport({
 });
 
 function combineDateAndTime(dateString, timeString) {
-    if (!timeString) return null;
-    const [hours, minutes] = timeString.split(":").map(Number);
-    const date = new Date(dateString);
-    date.setHours(hours, minutes, 0, 0);
-    return date;
+  if (!timeString) return null;
+  const [hours, minutes] = timeString.split(":").map(Number);
+  const date = new Date(dateString);
+  date.setHours(hours, minutes, 0, 0);
+  return date;
 }
 
 //! Dashboard Stats: Approved vs Pending per month
 async function getDashboardBookingStats() {
-    const currentDate = new Date();
-    const monthsArray = [];
+  const currentDate = new Date();
+  const monthsArray = [];
 
-    for (let i = 0; i < 12; i++) {
-        const currentMonth = addMonths(currentDate, i);
-        const monthStart = startOfMonth(currentMonth);
-        const monthEnd = endOfMonth(currentMonth);
+  for (let i = 0; i < 12; i++) {
+    const currentMonth = addMonths(currentDate, i);
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
 
-        const [events] = await db.execute(
-            `SELECT is_approved FROM Event 
+    const [events] = await db.execute(
+      `SELECT is_approved FROM Event 
        WHERE start_date >= ? AND start_date <= ?`,
-            [monthStart, monthEnd]
-        );
+      [monthStart, monthEnd]
+    );
 
-        const approvedCount = events.filter((e) => e.is_approved).length;
-        const notApprovedCount = events.filter((e) => !e.is_approved).length;
+    const approvedCount = events.filter((e) => e.is_approved).length;
+    const notApprovedCount = events.filter((e) => !e.is_approved).length;
 
-        monthsArray.push({
-            month: format(currentMonth, "MMM"),
-            approved: approvedCount,
-            notApproved: notApprovedCount,
-        });
-    }
+    monthsArray.push({
+      month: format(currentMonth, "MMM"),
+      approved: approvedCount,
+      notApproved: notApprovedCount,
+    });
+  }
 
-    return monthsArray;
+  return monthsArray;
 }
 
 //! Get All Bookings (with search & pagination)
@@ -77,40 +78,72 @@ async function getDashboardBookingStats() {
 // ============================================
 const getAllBookings = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10 } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    const take = parseInt(limit);
+    const {
+      search,
+      month,
+      year,
+      page = 1,
+      limit = 10,
+      filter, // productId filter
+    } = req.query;
 
-    let whereClause = "";
+    const take = parseInt(limit);
+    const offset = (parseInt(page) - 1) * take;
+
+
+    /* ------------------ WHERE BUILDER ------------------ */
+    let conditions = [];
     let params = [];
 
+    // 🔍 SEARCH
     if (search) {
       const searchTerm = `%${search.toLowerCase()}%`;
-      whereClause = `WHERE LOWER(c.category_name) LIKE ? OR LOWER(p.title) LIKE ?`;
+      conditions.push(`(LOWER(c.category_name) LIKE ? OR LOWER(p.title) LIKE ?)`);
       params.push(searchTerm, searchTerm);
     }
 
-    // Total count
+    // 📅 MONTH + YEAR
+    if (month && year) {
+      const paddedMonth = String(month).padStart(2, "0");
+      const startDate = `${year}-${paddedMonth}-01 00:00:00`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${paddedMonth}-${lastDay} 23:59:59`;
+      conditions.push(`e.start_date BETWEEN ? AND ?`);
+      params.push(startDate, endDate);
+    }
+
+    // 🔹 FILTER BY PRODUCT ID
+    if (filter) {
+      conditions.push(`p.id = ?`);
+      params.push(filter);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    /* ------------------ TOTAL COUNT ------------------ */
     const countQuery = `
-      SELECT COUNT(*) as total
+      SELECT COUNT(DISTINCT e.id) as total
       FROM Event e
       JOIN Product p ON e.productId = p.id
       JOIN Category c ON p.category_id = c.id
-      JOIN User u ON e.userId = u.id
+      JOIN Users u ON e.userId = u.id
       JOIN EventType et ON e.eventTypeId = et.id
       ${whereClause}
     `;
     const [countResult] = await db.execute(countQuery, params);
-    const totalCount = countResult[0].total;
+    const totalCount = countResult[0]?.total || 0;
 
-    // Fetch bookings with JUNCTION TABLE joins to get only selected services
+    /* ------------------ BOOKINGS QUERY ------------------ */
     const bookingsQuery = `
       SELECT 
-        e.id, e.start_date, e.end_date, e.start_time, e.end_time, e.is_approved, e.total_price,
+        e.id, e.start_date, e.end_date, e.start_time, e.end_time,
+        e.is_approved, e.total_price,
+
         u.id as user_id, u.firstname, u.lastname, u.email as user_email,
         p.id as product_id, p.title as product_title, p.address,
         c.category_name,
         et.id as eventtype_id, et.title as eventtype_name,
+
         mm.id as mm_id, mm.multimedia_name, mm.price as mm_price, mm.offerPrice as mm_offerPrice,
         mus.id as mus_id, mus.instrument_name, mus.price as mus_price, mus.offerPrice as mus_offerPrice,
         lux.id as lux_id, lux.luxury_name, lux.price as lux_price, lux.offerPrice as lux_offerPrice,
@@ -120,40 +153,40 @@ const getAllBookings = async (req, res) => {
         adv.id as adv_id, adv.adventure_name, adv.price as adv_price, adv.offerPrice as adv_offerPrice,
         pp.id as pp_id, pp.partypalace_name, pp.price as pp_price, pp.offerPrice as pp_offerPrice,
         ct.id as ct_id, ct.catering_name, ct.price as ct_price, ct.offerPrice as ct_offerPrice
+
       FROM Event e
-      JOIN User u ON e.userId = u.id
+      JOIN Users u ON e.userId = u.id
       JOIN Product p ON e.productId = p.id
       JOIN Category c ON p.category_id = c.id
       JOIN EventType et ON e.eventTypeId = et.id
-      
-      -- Join through junction tables to get ONLY selected services
+
       LEFT JOIN EventMultimedia emm ON emm.eventId = e.id
       LEFT JOIN Multimedia mm ON mm.id = emm.multimediaId
-      
+
       LEFT JOIN EventMusical emus ON emus.eventId = e.id
       LEFT JOIN Musical mus ON mus.id = emus.musicalId
-      
+
       LEFT JOIN EventLuxury elux ON elux.eventId = e.id
       LEFT JOIN Luxury lux ON lux.id = elux.luxuryId
-      
+
       LEFT JOIN EventEntertainment eent ON eent.eventId = e.id
       LEFT JOIN Entertainment ent ON ent.id = eent.entertainmentId
-      
+
       LEFT JOIN EventMeeting em ON em.eventId = e.id
       LEFT JOIN Meeting m ON m.id = em.meetingId
-      
+
       LEFT JOIN EventBeautyDecor ebd ON ebd.eventId = e.id
       LEFT JOIN BeautyDecor bd ON bd.id = ebd.beautyDecorId
-      
+
       LEFT JOIN EventAdventure eadv ON eadv.eventId = e.id
       LEFT JOIN Adventure adv ON adv.id = eadv.adventureId
-      
+
       LEFT JOIN EventPartyPalace epp ON epp.eventId = e.id
       LEFT JOIN PartyPalace pp ON pp.id = epp.partyPalaceId
-      
+
       LEFT JOIN EventCateringTent ect ON ect.eventId = e.id
       LEFT JOIN CateringTent ct ON ct.id = ect.cateringTentId
-      
+
       ${whereClause}
       ORDER BY e.updated_at DESC
       LIMIT ? OFFSET ?
@@ -161,14 +194,17 @@ const getAllBookings = async (req, res) => {
 
     const [bookings] = await db.execute(bookingsQuery, [...params, take, offset]);
 
-    // Group services under each booking (remove duplicates)
+    /* ------------------ GROUPING ------------------ */
     const groupedBookings = [];
     const map = new Map();
 
-    bookings.forEach((row) => {
-      const key = row.id;
-      if (!map.has(key)) {
-        map.set(key, {
+    const addUnique = (arr, obj) => {
+      if (obj.id && !arr.some(i => i.id === obj.id)) arr.push(obj);
+    };
+
+    bookings.forEach(row => {
+      if (!map.has(row.id)) {
+        map.set(row.id, {
           id: row.id,
           start_date: row.start_date,
           end_date: row.end_date,
@@ -206,90 +242,20 @@ const getAllBookings = async (req, res) => {
         });
       }
 
-      const booking = map.get(key);
+      const b = map.get(row.id);
 
-      // Use Set to avoid duplicate service IDs
-      const addUniqueService = (serviceArray, serviceData) => {
-        if (serviceData.id && !serviceArray.find(s => s.id === serviceData.id)) {
-          serviceArray.push(serviceData);
-        }
-      };
-
-      if (row.mm_id) {
-        addUniqueService(booking.services.Multimedia, {
-          id: row.mm_id,
-          name: row.multimedia_name,
-          price: row.mm_price,
-          offerPrice: row.mm_offerPrice
-        });
-      }
-      if (row.mus_id) {
-        addUniqueService(booking.services.Musical, {
-          id: row.mus_id,
-          name: row.instrument_name,
-          price: row.mus_price,
-          offerPrice: row.mus_offerPrice
-        });
-      }
-      if (row.lux_id) {
-        addUniqueService(booking.services.Luxury, {
-          id: row.lux_id,
-          name: row.luxury_name,
-          price: row.lux_price,
-          offerPrice: row.lux_offerPrice
-        });
-      }
-      if (row.ent_id) {
-        addUniqueService(booking.services.Entertainment, {
-          id: row.ent_id,
-          name: row.entertainment_name,
-          price: row.ent_price,
-          offerPrice: row.ent_offerPrice
-        });
-      }
-      if (row.m_id) {
-        addUniqueService(booking.services.Meeting, {
-          id: row.m_id,
-          name: row.meeting_name,
-          price: row.m_price,
-          offerPrice: row.m_offerPrice
-        });
-      }
-      if (row.bd_id) {
-        addUniqueService(booking.services.BeautyDecor, {
-          id: row.bd_id,
-          name: row.beauty_name,
-          price: row.bd_price,
-          offerPrice: row.bd_offerPrice
-        });
-      }
-      if (row.adv_id) {
-        addUniqueService(booking.services.Adventure, {
-          id: row.adv_id,
-          name: row.adventure_name,
-          price: row.adv_price,
-          offerPrice: row.adv_offerPrice
-        });
-      }
-      if (row.pp_id) {
-        addUniqueService(booking.services.PartyPalace, {
-          id: row.pp_id,
-          name: row.partypalace_name,
-          price: row.pp_price,
-          offerPrice: row.pp_offerPrice
-        });
-      }
-      if (row.ct_id) {
-        addUniqueService(booking.services.CateringTent, {
-          id: row.ct_id,
-          name: row.catering_name,
-          price: row.ct_price,
-          offerPrice: row.ct_offerPrice
-        });
-      }
+      if (row.mm_id) addUnique(b.services.Multimedia, { id: row.mm_id, name: row.multimedia_name, price: row.mm_price, offerPrice: row.mm_offerPrice });
+      if (row.mus_id) addUnique(b.services.Musical, { id: row.mus_id, name: row.instrument_name, price: row.mus_price, offerPrice: row.mus_offerPrice });
+      if (row.lux_id) addUnique(b.services.Luxury, { id: row.lux_id, name: row.luxury_name, price: row.lux_price, offerPrice: row.lux_offerPrice });
+      if (row.ent_id) addUnique(b.services.Entertainment, { id: row.ent_id, name: row.entertainment_name, price: row.ent_price, offerPrice: row.ent_offerPrice });
+      if (row.m_id) addUnique(b.services.Meeting, { id: row.m_id, name: row.meeting_name, price: row.m_price, offerPrice: row.m_offerPrice });
+      if (row.bd_id) addUnique(b.services.BeautyDecor, { id: row.bd_id, name: row.beauty_name, price: row.bd_price, offerPrice: row.bd_offerPrice });
+      if (row.adv_id) addUnique(b.services.Adventure, { id: row.adv_id, name: row.adventure_name, price: row.adv_price, offerPrice: row.adv_offerPrice });
+      if (row.pp_id) addUnique(b.services.PartyPalace, { id: row.pp_id, name: row.partypalace_name, price: row.pp_price, offerPrice: row.pp_offerPrice });
+      if (row.ct_id) addUnique(b.services.CateringTent, { id: row.ct_id, name: row.catering_name, price: row.ct_price, offerPrice: row.ct_offerPrice });
     });
 
-    map.forEach((val) => groupedBookings.push(val));
+    map.forEach(v => groupedBookings.push(v));
 
     res.json({
       success: true,
@@ -298,11 +264,15 @@ const getAllBookings = async (req, res) => {
       currentPage: parseInt(page),
       bookings: groupedBookings,
     });
+
   } catch (error) {
     console.error("getAllBookings error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+
+
 
 
 // ============================================
@@ -481,50 +451,50 @@ const getBookingByUserId = async (req, res) => {
 
 //! Dashboard Stats Endpoint
 const getBookingStats = async (req, res) => {
-    try {
-        const stats = await getDashboardBookingStats();
-        res.json(stats);
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
+  try {
+    const stats = await getDashboardBookingStats();
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 };
 
 //! Get Booking by ID
 const getBookingById = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const [rows] = await db.execute(
-            `SELECT e.*, u.email as user_email, p.title as product_title, c.category_name
+  const { id } = req.params;
+  try {
+    const [rows] = await db.execute(
+      `SELECT e.*, u.email as user_email, p.title as product_title, c.category_name
        FROM Event e
-       JOIN User u ON e.userId = u.id
+       JOIN Users u ON e.userId = u.id
        JOIN Product p ON e.productId = p.id
        JOIN Category c ON p.category_id = c.id
        WHERE e.id = ?`,
-            [id]
-        );
+      [id]
+    );
 
-        if (rows.length === 0) {
-            return res.status(404).json({ success: false, error: `Booking ${id} doesn't exist` });
-        }
-
-        res.json({ success: true, booking: rows[0] });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, error: `Booking ${id} doesn't exist` });
     }
+
+    res.json({ success: true, booking: rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 };
 
 //! Delete Booking
 const deleteBookingById = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const [result] = await db.execute(`DELETE FROM Event WHERE id = ?`, [id]);
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ success: false, error: `Booking with ID ${id} does not exist` });
-        }
-        res.json({ success: true, message: "Booking Deleted" });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+  const { id } = req.params;
+  try {
+    const [result] = await db.execute(`DELETE FROM Event WHERE id = ?`, [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, error: `Booking with ID ${id} does not exist` });
     }
+    res.json({ success: true, message: "Booking Deleted" });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 };
 
 //! Create Booking
@@ -556,7 +526,7 @@ const createBooking = async (req, res) => {
     const combinedEndTime = combineDateAndTime(end_date, end_time);
 
     // 🔹 AUTO APPROVAL LOGIC (ONLY CHANGE)
-    const isApproved = req.user.role === "ADMIN" ? 1 : 0;
+    const isApproved = req.user.role === "ADMIN" ? 1 : 1;
 
     // ✅ Verify product exists
     const [[product]] = await db.execute(
@@ -692,6 +662,30 @@ const createBooking = async (req, res) => {
   }
 };
 
+const sendBookingApprovedSMS = async (phone, booking, serviceNames) => {
+  const apiKey = process.env.SMS_API_KEY;
+  const senderId = "FSN_Alert";
+
+  const message = `Hello ${booking.firstname},
+Your booking for "${booking.product_title}" has been APPROVED ✅.
+
+Booked Service: ${serviceNames}
+Total: Rs. ${booking.total_price}
+
+Thank you for choosing us!`;
+
+  try {
+    const url = `https://samayasms.com.np/smsapi/index?key=${apiKey}&contacts=${phone}&senderid=${senderId}&msg=${encodeURIComponent(
+      message
+    )}&responsetype=json`;
+
+    const response = await axios.get(url);
+    return response.data;
+  } catch (error) {
+    console.error("SMS send failed:", error.message);
+  }
+};
+
 
 //! Update Booking (Approve/Reject)
 const updateBooking = async (req, res) => {
@@ -699,23 +693,31 @@ const updateBooking = async (req, res) => {
     const { id } = req.params;
     const { is_approved } = req.body;
 
-    // Update booking approval status
+    // 1️⃣ Update booking status
     const [result] = await db.execute(
       `UPDATE Event SET is_approved = ? WHERE id = ?`,
       [is_approved, id]
     );
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
     }
 
-    // Fetch booking + user info for potential email notification
+    // 2️⃣ Fetch booking + user info
     const [bookingRows] = await db.execute(
-      `SELECT e.id, e.is_approved, e.total_price, e.start_date, e.end_date, 
-              u.email AS user_email, u.firstname, u.lastname,
-              p.title AS product_title
+      `SELECT 
+          e.id,
+          e.is_approved,
+          e.total_price,
+          u.phone_number,
+          u.firstname,
+          u.lastname,
+          p.title AS product_title
        FROM Event e
-       JOIN User u ON e.userId = u.id
+       JOIN Users u ON e.userId = u.id
        JOIN Product p ON e.productId = p.id
        WHERE e.id = ?`,
       [id]
@@ -723,77 +725,80 @@ const updateBooking = async (req, res) => {
 
     const booking = bookingRows[0];
 
-    // 🟢 Optional Email Notification
-    try {
-      // Only try sending email if credentials exist
-      if (process.env.EMAIL && process.env.PASSWORD) {
-        const transporter = nodemailer.createTransport({
-          service: "gmail",
-          auth: {
-            user: process.env.EMAIL,
-            pass: process.env.PASSWORD,
-          },
-        });
+    // 3️⃣ Fetch booked services
+    const serviceTables = [
+      { table: "EventMultimedia", join: "Multimedia", nameCol: "multimedia_name", idCol: "multimediaId" },
+      { table: "EventMusical", join: "Musical", nameCol: "instrument_name", idCol: "musicalId" },
+      { table: "EventLuxury", join: "Luxury", nameCol: "luxury_name", idCol: "luxuryId" },
+      { table: "EventEntertainment", join: "Entertainment", nameCol: "entertainment_name", idCol: "entertainmentId" },
+      { table: "EventMeeting", join: "Meeting", nameCol: "meeting_name", idCol: "meetingId" },
+      { table: "EventBeautyDecor", join: "BeautyDecor", nameCol: "beauty_name", idCol: "beautyDecorId" },
+      { table: "EventAdventure", join: "Adventure", nameCol: "adventure_name", idCol: "adventureId" },
+      { table: "EventPartyPalace", join: "PartyPalace", nameCol: "partypalace_name", idCol: "partyPalaceId" },
+      { table: "EventCateringTent", join: "CateringTent", nameCol: "catering_name", idCol: "cateringTentId" },
+    ];
 
-        const mailOptions = {
-          from: process.env.EMAIL,
-          to: booking.user_email,
-          subject: `Booking ${is_approved ? "Approved" : "Updated"} - ${booking.product_title}`,
-          text: `
-Hello ${booking.firstname},
+    let serviceNames = [];
 
-Your booking for "${booking.product_title}" has been ${
-            is_approved ? "approved ✅" : "updated"
-          }.
+    for (const s of serviceTables) {
+      const [rows] = await db.execute(
+        `SELECT t.${s.nameCol} AS name
+         FROM ${s.table} j
+         JOIN ${s.join} t ON t.id = j.${s.idCol}
+         WHERE j.eventId = ?`,
+        [id]
+      );
 
-Booking Details:
-- Booking ID: ${booking.id}
-- Total Price: Rs. ${booking.total_price}
-- Date: ${new Date(booking.start_date).toDateString()} to ${new Date(
-            booking.end_date
-          ).toDateString()}
+      rows.forEach(r => {
+        if (r.name) serviceNames.push(r.name);
+      });
+    }
 
-Thank you for using our service!
-          `,
-        };
+    const serviceNamesStr = serviceNames.length > 0 ? serviceNames.join(", ") : booking.product_title;
 
-        await transporter.sendMail(mailOptions);
-      } else {
-        console.warn("⚠️ Email credentials not found — skipping email send.");
-      }
-    } catch (mailError) {
-      console.error("Email send failed:", mailError.message);
+    // 4️⃣ Send SMS if approved
+    if ((is_approved === true || is_approved === 1) && process.env.SMS_API_KEY && booking.phone_number) {
+      await sendBookingApprovedSMS(booking.phone_number, booking, serviceNamesStr);
+    } else if (!process.env.SMS_API_KEY || !booking.phone_number) {
+      console.warn("⚠️ SMS skipped (API key or phone missing)");
     }
 
     return res.json({
       success: true,
-      message: "Booking updated successfully",
-      booking: booking,
+      message: is_approved
+        ? "Booking approved and SMS sent"
+        : "Booking updated successfully",
+      booking,
+      servicesBooked: serviceNamesStr,
     });
   } catch (error) {
     console.error("updateBooking error:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 };
 
+
 const tableMap = {
-    PartyPalace: "EventPartyPalace",
-    CateringTent: "EventCateringTent",
-    Adventure: "EventAdventure",
-    BeautyDecor: "EventBeautyDecor",
-    Meeting: "EventMeeting",
-    Entertainment: "EventEntertainment",
-    Luxury: "EventLuxury",
-    Musical: "EventMusical",
-    Multimedia: "EventMultimedia",
+  PartyPalace: "EventPartyPalace",
+  CateringTent: "EventCateringTent",
+  Adventure: "EventAdventure",
+  BeautyDecor: "EventBeautyDecor",
+  Meeting: "EventMeeting",
+  Entertainment: "EventEntertainment",
+  Luxury: "EventLuxury",
+  Musical: "EventMusical",
+  Multimedia: "EventMultimedia",
 };
 
 export {
-    getAllBookings,
-    getBookingById,
-    getBookingStats,
-    deleteBookingById,
-    createBooking,
-    updateBooking,
-    getBookingByUserId
+  getAllBookings,
+  getBookingById,
+  getBookingStats,
+  deleteBookingById,
+  createBooking,
+  updateBooking,
+  getBookingByUserId
 };

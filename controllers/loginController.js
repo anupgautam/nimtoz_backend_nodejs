@@ -8,11 +8,11 @@ import db from "../config/prisma.js"; // your MySQL connection
 //! Login User
 const loginUser = async (req, res) => {
   try {
-    // Validate input with zod
+    // Validate input
     const { phone_number, password } = loginSchema.parse(req.body);
 
-    if (!phone_number) {
-      return res.status(400).json({ success: false, message: "Phone number is required" });
+    if (!phone_number || !password) {
+      return res.status(400).json({ success: false, message: "Phone number and password are required" });
     }
 
     // Find user by phone_number
@@ -26,47 +26,59 @@ const loginUser = async (req, res) => {
           password,
           role,
           avatar,
-          isVerified
+          isVerified,
+          status
        FROM Users
        WHERE phone_number = ?`,
       [phone_number]
     );
 
+    // If user not found OR password invalid, return generic error
     if (rows.length === 0) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res.status(400).json({ success: false, message: "Phone number or password is incorrect" });
     }
 
-    let user = rows[0];
+    const user = rows[0];
 
-    // Compare password
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
+      return res.status(400).json({ success: false, message: "Phone number or password is incorrect" });
     }
 
-    // Convert isVerified from 0/1 to boolean
-    user.isVerified = Boolean(user.isVerified);
+    // Check if user is ACTIVE
+    if (user.status !== "ACTIVE") {
+      return res.status(400).json({ success: false, message: "User account is inactive" });
+    }
 
-    // Remove password from user object
+    // Check if user is verified
+    if (!user.isVerified) {
+      return res.status(400).json({ success: false, message: "User email/phone is not verified" });
+    }
+
+    // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
 
     // Generate tokens
     const accessToken = generateAccesstoken({
       id: userWithoutPassword.id,
       role: userWithoutPassword.role,
-      isVerified: userWithoutPassword.isVerified, // send boolean in token
+      isVerified: Boolean(userWithoutPassword.isVerified),
     });
 
     const refreshToken = generateRefreshToken({
       id: userWithoutPassword.id,
-      isVerified: userWithoutPassword.isVerified,
+      isVerified: Boolean(userWithoutPassword.isVerified),
     });
 
+    // Respond
     res.json({
       success: true,
       accessToken,
       refreshToken,
-      user: userWithoutPassword, // isVerified is now boolean
+      user: {
+        ...userWithoutPassword,
+        isVerified: Boolean(userWithoutPassword.isVerified),
+      },
     });
   } catch (error) {
     console.error("loginUser error:", error);
@@ -78,7 +90,7 @@ const loginUser = async (req, res) => {
       });
     }
 
-    res.status(400).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
